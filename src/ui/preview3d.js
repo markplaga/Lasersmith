@@ -6,6 +6,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { placeMatrix, toWorld } from '../geom/design.js';
 import { sheetTransform } from '../geom/nest.js';
 import { bbox } from '../geom/poly.js';
+import { assemblyOrder } from '../geom/order.js';
 
 export function createPreview(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -24,7 +25,7 @@ export function createPreview(canvas) {
   scene.add(fill);
   const root = new THREE.Group();
   scene.add(root);
-  let meshes = [], dowels = [], lastKey = '', explode = 0, center = new THREE.Vector3();
+  let anim = null, meshes = [], dowels = [], lastKey = '', explode = 0, center = new THREE.Vector3();
 
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -67,10 +68,11 @@ export function createPreview(canvas) {
     renderer.setScissorTest(false);
     camera.position.copy(base); camera.lookAt(controls.target);
   }
-  const loop = () => { raf = requestAnimationFrame(loop); resize(); controls.update(); draw(); };
+  const loop = () => { raf = requestAnimationFrame(loop); resize(); controls.update(); stepAssemble(); draw(); };
   loop();
 
   function clear() {
+    stopAssemble();
     root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
     root.clear();
     meshes = [];
@@ -187,21 +189,80 @@ export function createPreview(canvas) {
     setExplode(explode);
   }
 
+  function placeAt(g, part, k) {
+    const bb = bbox(part.outline);
+    const c = toWorld(part.place, (bb.x + bb.x1) / 2, (bb.y + bb.y1) / 2);
+    const d = new THREE.Vector3(c[0] - center.x, c[1] - center.y, c[2] - center.z);
+    const m = g.userData.base.clone();
+    m.elements[12] += d.x * k; m.elements[13] += d.y * k; m.elements[14] += d.z * k;
+    g.matrix.copy(m);
+  }
+
   function setExplode(k) {
     explode = k;
-    for (const { g, part } of meshes) {
-      if (!g.userData.base || !part.place) continue;
-      const bb = bbox(part.outline);
-      const c = toWorld(part.place, (bb.x + bb.x1) / 2, (bb.y + bb.y1) / 2);
-      const d = new THREE.Vector3(c[0] - center.x, c[1] - center.y, c[2] - center.z);
-      const m = g.userData.base.clone();
-      m.elements[12] += d.x * k; m.elements[13] += d.y * k; m.elements[14] += d.z * k;
-      g.matrix.copy(m);
-    }
+    if (anim) return; // the animation places parts itself and restores this at the end
+    for (const { g, part } of meshes) if (g.userData.base && part.place) placeAt(g, part, k);
     for (const d of dowels) {
       const b = d.userData.base;
       d.position.set(b.x + (b.x - center.x) * k, b.y + (b.y - center.y) * k, b.z + (b.z - center.z) * k);
     }
+  }
+
+  // "Assemble" animation: parts fly in one after another, in assembly order, from an exploded spot.
+  function assemble(onDone) {
+    stopAssemble();
+    const placed = meshes.filter(m => m.g.userData.base && m.part.place);
+    if (!placed.length) return false;
+    const byPart = new Map(placed.map(m => [m.part, m]));
+    const list = assemblyOrder({ parts: placed.map(m => m.part) }).map(p => byPart.get(p));
+    const per = Math.min(0.4, 6 / list.length), fly = 0.8;
+    anim = { t0: performance.now(), list, per, fly, end: (list.length - 1) * per + fly, onDone };
+    for (const d of dowels) d.visible = false;
+    return true;
+  }
+  function stopAssemble(done) {
+    if (!anim) return;
+    const cb = anim.onDone;
+    anim = null;
+    for (const m of meshes) m.g.visible = true;
+    for (const d of dowels) d.visible = true;
+    setExplode(explode);
+    if (cb) cb(!!done);
+  }
+  function stepAssemble() {
+    if (!anim) return;
+    const T = (performance.now() - anim.t0) / 1000;
+    if (T >= anim.end) { stopAssemble(true); return; }
+    anim.list.forEach((m, i) => {
+      const s = (T - i * anim.per) / anim.fly;
+      m.g.visible = s > 0;
+      if (s <= 0) return;
+      const e = Math.min(1, s), k = Math.pow(1 - e, 3) * 1.6; // ease out
+      placeAt(m.g, m.part, Math.max(explode, k));
+    });
+  }
+
+  /**
+   * The part under a point on the canvas (client coordinates): {part, point: [x, y, z]} in design
+   * coordinates, or null. In stereo, either picture can be clicked.
+   */
+  const ray = new THREE.Raycaster();
+  function pick(clientX, clientY) {
+    const r = canvas.getBoundingClientRect();
+    let x = clientX - r.left, w = r.width;
+    if (stereo !== 'off') { w = r.width / 2; x = x % w; }
+    const ndc = new THREE.Vector2((x / w) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    const aspect = camera.aspect;
+    camera.aspect = w / r.height; camera.updateProjectionMatrix();
+    root.updateMatrixWorld(true);
+    ray.setFromCamera(ndc, camera);
+    camera.aspect = aspect; camera.updateProjectionMatrix();
+    const hits = ray.intersectObjects(meshes.map(m => m.g.children[0]), false);
+    if (!hits.length) return null;
+    const m = meshes.find(q => q.g.children[0] === hits[0].object);
+    const pt = hits[0].point.clone();
+    root.worldToLocal(pt);
+    return { part: m.part, point: [pt.x, pt.y, pt.z] };
   }
 
   /** mode 'off' | 'cross' | 'parallel'; deg = convergence angle (depth) */
@@ -211,5 +272,5 @@ export function createPreview(canvas) {
     if (deg) stereoDeg = deg;
   }
 
-  return { show, setExplode, setStereo, reframe() { lastKey = ''; }, snapshot: () => canvas.toDataURL('image/png'), dispose() { cancelAnimationFrame(raf); clear(); renderer.dispose(); } };
+  return { show, setExplode, setStereo, pick, renderNow() { resize(); controls.update(); draw(); }, assemble, stopAssemble: () => stopAssemble(false), get assembling() { return !!anim; }, reframe() { lastKey = ''; }, snapshot: () => canvas.toDataURL('image/png'), dispose() { cancelAnimationFrame(raf); clear(); renderer.dispose(); } };
 }

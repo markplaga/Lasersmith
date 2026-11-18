@@ -50,7 +50,10 @@ Joints (moving parts between boxes):
       portAt(box, face, du=0, dv=0) -> a port on that face moved du along its u and dv along its v.
       addHinge({partsA, portA, B, portB, h, t, bodies: {A, B, X}, label}) hangs box B (a buildBox result in
       its own coordinates) off placed parts partsA at portA with a hinge. It cuts the arm slots into the
-      face plates, places B and returns {parts (hinge parts + B's parts), hardware, joint, notes}.
+      face plates, places B and returns {parts (hinge parts + B's parts), hardware, joint, notes, portsB}.
+      portsB are B's ports where it now sits, so a further box can hang off B (chains: arm, forearm).
+      In a chain, set joint.carries = [every body that hangs below B, including their cross bodies X]
+      so posing the upper joint moves the whole chain; list parent joints before child joints.
       h: {hinge: 'cross'|'pin'|'swivel', cube (cross size, 24), armW (20), gap (1), reach (0), pinD (6),
       pinClear (0.3), disc (swivel disc diameter, 30)}. Spread HINGE_PARAMS into params to expose them.
       Cross hinge = flat square cross with a t x t nub on each edge turning in round arm holes (2 axes).

@@ -12,6 +12,8 @@ import { loadMine, saveMine, newEntry, generatorFile, codeFromFile } from './min
 import { mountClaudePanel } from './ui/claudepanel.js';
 import { mountVoxelEditor } from './ui/voxeleditor.js';
 import { gridFor } from './generators/voxel.js';
+import { mountAssemblyPanel } from './ui/assemblypanel.js';
+import { spotOn, fitSpot } from './generators/assembly.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -101,6 +103,8 @@ async function select(id) {
   renderMineTools(e);
   panel.refresh();
   $('#voxelCard').hidden = id !== 'voxel-sculpture';
+  $('#asmCard').hidden = id !== 'assembly';
+  stopPick();
   if (e.source === 'claude') {
     schema = e.params || [];
     mountParams();
@@ -109,6 +113,7 @@ async function select(id) {
     schema = e.gen.params;
     mountParams();
     if (id === 'voxel-sculpture') voxEd.load();
+    if (id === 'assembly') asmPanel.load();
     regenerate(true);
   } else {
     schema = [];
@@ -197,6 +202,7 @@ function render() {
   renderSheets();
   renderIssues();
   renderStats();
+  if (S.entry === 'assembly') asmPanel.refresh();
 }
 
 function renderSheets() {
@@ -278,8 +284,21 @@ document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('clic
   if (kind === 'lbrn2') saveFile(base + '.lbrn2', sheetLBRN2(sh, design), 'application/xml');
   const e = entryOf(S.entry);
   const extra = e.source === 'claude' ? [{ name: slug(e.title) + '.generator.js', data: generatorFile(e) }] : [];
-  if (kind === 'zip') saveFile(slug(design.title) + '.zip', new Blob([exportBundle(nested, design, { extra })], { type: 'application/zip' }));
+  if (kind === 'zip') saveFile(slug(design.title) + '.zip', new Blob([exportBundle(nested, design, { extra, image: guideImage() })], { type: 'application/zip' }));
 }));
+
+/** A picture of the assembled design for the assembly guide (normal view, whatever the stereo setting). */
+function guideImage() {
+  if (!design.parts.some(p => p.place) || S.view === 'flat') return null;
+  try {
+    if (S.stereo === 'off') return preview.snapshot();
+    preview.setStereo('off', S.stereoDeg); preview.show(design, nested, { mode: S.view, material: S.material, reframe: true });
+    preview.renderNow();
+    const img = preview.snapshot();
+    applyStereo(); render();
+    return img;
+  } catch (e) { return null; }
+}
 
 /* ---------- material + machine ---------- */
 function mountMaterial() {
@@ -319,13 +338,17 @@ for (const k of ['bedW', 'bedH', 'margin']) {
 }
 $('#bedSwap').addEventListener('click', () => { [S.machine.bedW, S.machine.bedH] = [S.machine.bedH, S.machine.bedW]; save(); mountMaterial(); regenerate(); });
 document.querySelectorAll('#unitSeg button').forEach(b => b.addEventListener('click', () => {
-  S.units = b.dataset.u; save(); mountMaterial(); mountParams(); if (design) { renderSheets(); renderStats(); }
+  S.units = b.dataset.u; save(); mountMaterial(); mountParams(); if (design) { renderSheets(); renderStats(); } if (S.entry === 'assembly') asmPanel.load();
 }));
 document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('click', () => {
   S.view = b.dataset.v; save();
   document.querySelectorAll('#viewSeg button').forEach(x => x.classList.toggle('on', x === b));
   if (design) render();
 }));
+$('#assembleBtn').addEventListener('click', () => {
+  if (preview.assembling) { preview.stopAssemble(); return; }
+  if (preview.assemble(() => { $('#assembleBtn').textContent = 'Assemble ▶'; })) $('#assembleBtn').textContent = 'Stop ■';
+});
 $('#explode').addEventListener('input', e => { S.explode = +e.target.value; preview.setExplode(S.explode); });
 function applyStereo() {
   preview.setStereo(S.stereo, S.stereoDeg);
@@ -425,6 +448,35 @@ const voxEd = mountVoxelEditor($('#voxelCard'), {
     save(); mountParams(); regenerate();
   },
 });
+
+/* ---------- assemblies: boxes joined by hinges (PRD 4.3) ---------- */
+let pickCb = null, downAt = null;
+function stopPick() { pickCb = null; $('#view').classList.remove('picking'); }
+const asmPanel = mountAssemblyPanel($('#asmCard'), {
+  getSpec: () => currentParams().spec,
+  setSpec: spec => { S.params[S.entry] = { ...(S.params[S.entry] || {}), spec: JSON.stringify(spec) }; save(); regenerate(); },
+  units: () => S.units,
+  design: () => design,
+  fit: (spot, joint) => fitSpot(spot, design, joint, currentParams(), matNow().thickness),
+  startPick: cb => {
+    if (!cb) return stopPick();
+    pickCb = cb;
+    $('#view').classList.add('picking');
+    if (S.view === 'flat') { S.view = '3d'; document.querySelectorAll('#viewSeg button').forEach(x => x.classList.toggle('on', x.dataset.v === '3d')); render(); }
+  },
+  toast,
+});
+$('#view').addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+$('#view').addEventListener('pointerup', e => {
+  if (!pickCb || !downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  const hit = preview.pick(e.clientX, e.clientY);
+  const spot = hit && design && spotOn(design, hit.part, hit.point);
+  if (!spot) { toast('Click on the face of a box'); return; }
+  const cb = pickCb;
+  stopPick();
+  cb(spot);
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && pickCb) { const cb = pickCb; stopPick(); cb(null); } });
 
 /* ---------- Claude mode (M3) ---------- */
 const panel = mountClaudePanel($('#claudeCard'), {

@@ -282,6 +282,8 @@ Added by Mark (2026-11-18), matching Boxsmith. The 3D preview has a view menu wi
 
 M1 is the first milestone (Q5). M2 before M3 is deliberate: Claude needs the joint and port vocabulary to build an articulated robot well.
 
+**Status (2026-11-18).** M1, M2, M3 and M5 are built. Also done: the **Assembly** design (4.3: boxes hung off each other's faces by cross hinge, pin hinge, swivel or glue, in chains that pose as a whole, faces picked by clicking in 3D), robot **elbows and knees**, the **assemble animation** and an **assembly guide** (assembly-guide.html in the export zip), the voxel **third family** (flat tiles that hook into slots), and a **maximize** button on the 3D preview. Assemblies currently combine boxes; joining arbitrary library designs needs those designs to declare ports. M4 waits on the Supabase project.
+
 ## 15. Decisions (confirmed by Mark, 2026-11-17)
 
 | # | Question | Decision |

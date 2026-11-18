@@ -1,6 +1,8 @@
 // SVG, DXF (R12) and LightBurn .lbrn2 writers for one nested sheet, plus a tiny ZIP writer.
 
 import { sheetGeometry, LAYERS, r3 } from './sheetgeom.js';
+import { bbox } from '../geom/poly.js';
+import { assemblyOrder } from '../geom/order.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const d = (pts, closed) => 'M' + pts.map(p => r3(p[0]) + ' ' + r3(p[1])).join('L') + (closed ? 'Z' : '');
@@ -128,7 +130,7 @@ export function makeZip(files) {
 }
 
 /** All sheets in every format plus a README, as one zip. */
-export function exportBundle(nested, design, { formats = ['svg', 'dxf', 'lbrn2'], extra = [] } = {}) {
+export function exportBundle(nested, design, { formats = ['svg', 'dxf', 'lbrn2'], extra = [], image = null } = {}) {
   const base = slug(design.title);
   const files = [];
   nested.sheets.forEach((s, i) => {
@@ -137,7 +139,7 @@ export function exportBundle(nested, design, { formats = ['svg', 'dxf', 'lbrn2']
     if (formats.includes('dxf')) files.push({ name: `${base}${n}.dxf`, data: sheetDXF(s, design) });
     if (formats.includes('lbrn2')) files.push({ name: `${base}${n}.lbrn2`, data: sheetLBRN2(s, design) });
   });
-  files.push({ name: 'README.txt', data: readme(nested, design) }, ...extra);
+  files.push({ name: 'README.txt', data: readme(nested, design) }, { name: 'assembly-guide.html', data: assemblyGuide(nested, design, { image }) }, ...extra);
   files.push({ name: `${base}.lasersmith.json`, data: JSON.stringify({ format: design.format, version: design.version, title: design.title, generator: design.generator, material: design.material }, null, 2) });
   return makeZip(files);
 }
@@ -149,7 +151,8 @@ export function readme(nested, design) {
     design.kerfApplied ? 'Kerf compensation was applied by the generator (boxes.py burn).' : 'Kerf compensation is already applied: outlines are grown and holes shrunk by half the kerf.',
     `Sheets: ${nested.sheets.length} at ${nested.sheets[0] ? nested.sheets[0].w + ' x ' + nested.sheets[0].h : '-'} mm.`, '',
     'Layers (LightBurn palette): red = cut, blue = score, green = line engrave, black = fill engrave.',
-    'Run engrave and score layers before cut. Inner cuts are listed before outer cuts.', '',
+    'Run engrave and score layers before cut. Inner cuts are listed before outer cuts.',
+    'Open assembly-guide.html for pictures of every part in assembly order.', '',
     'Parts:', ...design.parts.map(p => `  ${p.qty} x ${p.name}`), '',
   ];
   const hw = new Map();
@@ -164,3 +167,58 @@ export function readme(nested, design) {
 }
 
 export const slug = s => String(s || 'design').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'design';
+
+/**
+ * Assembly guide (PRD 4.4 / 10): one self-contained HTML page for the zip, to read on screen or print.
+ * A picture of the assembled design (opts.image, a data URL), hardware, assembly notes, every part in
+ * assembly order with a drawing, and the cut sheets.
+ */
+export function assemblyGuide(nested, design, opts = {}) {
+  const t = design.material.thickness;
+  const placed = design.parts.some(p => p.place);
+  const order = placed ? assemblyOrder(design) : [];
+  const rest = design.parts.filter(p => !order.includes(p));
+  const list = [...order, ...rest];
+  const hw = new Map();
+  for (const h of design.hardware || []) {
+    const k = h.kind === 'dowel' ? `${h.d} mm wood dowel, cut to ${h.len.toFixed(1)} mm` : h.name;
+    hw.set(k, (hw.get(k) || 0) + 1);
+  }
+  const thumb = p => {
+    const b = bbox(p.outline);
+    const pad = Math.max(b.w, b.h) * 0.04 + 1;
+    const loops = [p.outline, ...(p.holes || [])].map(l => d(l, true)).join('') + (p.circles || []).map(c => `M${r3(c.cx - c.r)} ${r3(c.cy)}a${r3(c.r)} ${r3(c.r)} 0 1 0 ${r3(2 * c.r)} 0a${r3(c.r)} ${r3(c.r)} 0 1 0 ${r3(-2 * c.r)} 0Z`).join('');
+    const lines = [...(p.engrave || []), ...(p.score || [])].map(l => `<path d="${d(l, false)}"/>`).join('');
+    const sw = Math.max(b.w, b.h) / 160;
+    // y up in part coordinates: flip for SVG
+    return `<svg viewBox="${r3(b.x - pad)} ${r3(-b.y1 - pad)} ${r3(b.w + 2 * pad)} ${r3(b.h + 2 * pad)}" role="img" aria-label="${esc(p.name)}"><g transform="scale(1,-1)"><path d="${loops}" fill="#e2c08d" fill-rule="evenodd" stroke="#7a5434" stroke-width="${r3(sw)}"/><g fill="none" stroke="#2f7a3a" stroke-width="${r3(sw)}">${lines}</g></g></svg>`;
+  };
+  const sheets = nested.sheets.map((s, i) => `<figure class="sheet"><figcaption>Sheet ${i + 1} of ${nested.sheets.length}, ${r3(s.w)} x ${r3(s.h)} mm</figcaption>${sheetSVG(s, design, { preview: true }).replace(/ width="[^"]*mm" height="[^"]*mm"/, '')}</figure>`).join('');
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(design.title)} assembly guide</title>
+<style>
+body{font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#2a241c;background:#fbf7f0;margin:0;padding:24px 16px}
+main{max-width:900px;margin:0 auto}
+h1{font:600 28px Georgia,serif;margin:0 0 4px}h2{font:600 18px Georgia,serif;margin:28px 0 10px;border-bottom:1px solid #e3d8c5;padding-bottom:4px}
+.muted{color:#7a6f5e}.hero{width:100%;max-height:460px;object-fit:contain;background:#f1e8d8;border-radius:10px}
+ol.steps li{margin:6px 0}
+.parts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;padding:0;list-style:none}
+.parts li{background:#fff;border:1px solid #e3d8c5;border-radius:10px;padding:8px;text-align:center;font-size:13px;break-inside:avoid}
+.parts svg{width:100%;height:110px}.parts b{display:block;font-size:11px;color:#a0672f}
+.sheet{margin:0 0 16px}.sheet svg{width:100%;height:auto;border:1px solid #e3d8c5;border-radius:6px}.sheet figcaption{font-size:13px;color:#7a6f5e;margin-bottom:4px}
+@media print{body{background:#fff;padding:0}.sheet{break-before:page}}
+</style></head><body><main>
+<h1>${esc(design.title)}</h1>
+<p class="muted">${esc(design.material.name)}, ${t} mm thick, kerf ${design.material.kerf} mm. ${design.parts.reduce((a, p) => a + p.qty, 0)} parts on ${nested.sheets.length} sheet${nested.sheets.length === 1 ? '' : 's'}.</p>
+${opts.image ? `<img class="hero" src="${opts.image}" alt="The assembled design">` : ''}
+${hw.size ? `<h2>Hardware (not cut)</h2><ul>${[...hw].map(([k, n]) => `<li>${n} x ${esc(k)}</li>`).join('')}</ul>` : ''}
+${(design.info || []).length ? `<h2>How it goes together</h2><ol class="steps">${design.info.map(n => `<li>${esc(n)}</li>`).join('')}</ol>` : ''}
+<h2>Parts${placed ? ', in assembly order' : ''}</h2>
+<ol class="parts">${list.map((p, i) => `<li>${thumb(p)}<b>${placed && i < order.length ? 'Step ' + (i + 1) : ''}</b>${p.qty > 1 ? p.qty + ' x ' : ''}${esc(p.name)}</li>`).join('')}</ol>
+<h2>Cut sheets</h2>
+${sheets}
+<p class="muted">Layers: red = cut, blue = score, green = line engrave, black = fill engrave. Made with Lasersmith (GPL-3.0).</p>
+</main></body></html>
+`;
+}

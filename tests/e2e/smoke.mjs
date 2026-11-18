@@ -91,6 +91,14 @@ const body = fs.readFileSync(await dl.path(), 'utf8');
 check(body.includes('<LightBurnProject'), 'LBRN2 download');
 const [dz] = await Promise.all([page.waitForEvent('download'), page.click('[data-export=zip]')]);
 check(fs.statSync(await dz.path()).size > 1000, 'zip download');
+check(fs.readFileSync(await dz.path()).includes('assembly-guide.html'), 'zip has the assembly guide');
+// assemble animation runs and hands the button back
+await page.click('#assembleBtn');
+await page.waitForTimeout(300);
+check((await page.textContent('#assembleBtn')).includes('Stop'), 'assemble animation starts');
+await page.screenshot({ path: path.join(shots, 'assembling.png') });
+await page.waitForFunction(() => document.getElementById('assembleBtn').textContent.includes('Assemble'), null, { timeout: 10000 });
+check(true, 'assemble animation finishes');
 
 // inches
 await page.click('#unitSeg [data-u=in]');
@@ -126,7 +134,7 @@ check(true, 'pin hinge renders');
 await page.click('[data-id=robot]');
 await page.waitForFunction(() => __lasersmith.design && __lasersmith.design.generator.id === 'robot', null, { timeout: 30000 });
 st = await page.evaluate(() => ({ joints: __lasersmith.design.joints.length, bad: __lasersmith.issues.filter(i => i.level !== 'info').length }));
-check(st.joints === 5 && st.bad === 0, 'robot: 5 joints, clean ' + JSON.stringify(st));
+check(st.joints === 9 && st.bad === 0, 'robot: 9 joints (with elbows and knees), clean ' + JSON.stringify(st));
 await page.fill('input[type=number][data-key=shoulderL1]', '70');
 await page.waitForFunction(() => __lasersmith.design.joints[1].a1 === 70);
 await page.waitForTimeout(400);
@@ -168,6 +176,25 @@ if (pyDir) {
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(shots, 'flexbox.png') });
 }
+// assembly: add a box, then hang it on the base's front face by clicking it in 3D
+await page.evaluate(() => window.__lasersmith.select('assembly'));
+await page.waitForFunction(() => window.__lasersmith.design && window.__lasersmith.design.generator && window.__lasersmith.design.generator.id === 'assembly');
+await page.waitForTimeout(500);
+st = await page.evaluate(() => ({ joints: window.__lasersmith.design.joints.length, bad: window.__lasersmith.issues.filter(i => i.level === 'error').length }));
+check(st.joints === 3 && st.bad === 0, 'assembly: lamp of 4 boxes, 3 joints, clean ' + JSON.stringify(st));
+await page.screenshot({ path: path.join(shots, 'assembly.png') });
+await page.click('#asAdd');
+await page.waitForTimeout(600);
+await page.click('details.as-obj[open] [data-act=pick]');
+await page.evaluate(() => window.scrollTo(0, 0));
+await page.waitForTimeout(200);
+const vb = await page.locator('#view').boundingBox();
+await page.mouse.click(vb.x + vb.width * 0.52, vb.y + vb.height * 0.82);
+await page.waitForTimeout(800);
+st = await page.evaluate(() => ({ last: JSON.parse(window.__lasersmith.state.params.assembly.spec).objects.find(o => o.id === 'o5'), bad: window.__lasersmith.issues.filter(i => i.level === 'error').map(i => i.msg) }));
+check(st.last && st.last.parent === 'base' && st.bad.length === 0, 'assembly: picking a face in 3D hangs the new box there ' + JSON.stringify(st));
+await page.screenshot({ path: path.join(shots, 'assembly-picked.png') });
+
 check(errors.length === 0, 'no console errors ' + errors.slice(0, 3).join(' | '));
 await page.setViewportSize({ width: 390, height: 844 });
 await page.click('[data-id=finger-box]');

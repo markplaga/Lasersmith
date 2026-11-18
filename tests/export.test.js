@@ -67,3 +67,23 @@ await test('zip bundle round-trips (stored entries, valid CRC)', () => {
   assert.equal(new TextDecoder().decode(tiny.slice(35, 40)), 'hello');
   assert.equal(new DataView(tiny.buffer).getUint32(14, true), zlib.crc32 ? zlib.crc32('hello') : 0x3610a686);
 });
+
+await test('assembly guide: parts in assembly order with drawings, sheets, notes', async () => {
+  const { assemblyGuide } = await import('../src/export/formats.js');
+  const { assemblyOrder } = await import('../src/geom/order.js');
+  const { default: robot } = await import('../src/generators/robot.js');
+  const { defaults } = await import('../src/ui/params.js');
+  const { nest } = await import('../src/geom/nest.js');
+  const d = robot.generate(defaults(robot.params), { name: 'ply', thickness: 3, kerf: 0.15 });
+  const n = nest(d, { sheetW: 914.4, sheetH: 609.6, margin: 5, gap: 3 });
+  const order = assemblyOrder(d);
+  assert.equal(order.length, d.parts.filter(p => p.place).length);
+  // bottom up: the first part is no higher than the last
+  const low = p => Math.min(...p.outline.map(([x, y]) => p.place.o[2] + x * p.place.u[2] + y * p.place.v[2]));
+  assert.ok(low(order[0]) <= low(order[order.length - 1]));
+  const html = assemblyGuide(n, d, { image: 'data:image/png;base64,AAAA' });
+  assert.ok(html.startsWith('<!doctype html>'));
+  assert.ok(html.includes('Step 1') && html.includes('Cut sheets') && html.includes('data:image/png;base64,AAAA'));
+  assert.equal((html.match(/<figure class="sheet">/g) || []).length, n.sheets.length);
+  assert.ok(html.includes('wood dowel'));
+});

@@ -6,6 +6,7 @@ import { buildBox } from './fingerbox.js';
 import { makeDesign, makePart } from '../geom/design.js';
 import { circleLoop } from '../geom/poly.js';
 import { HINGE_PARAMS, addHinge, portAt, posed, rangeOfMotion, fmtRange } from '../joints/hinge.js';
+import { v3 } from '../geom/frame.js';
 
 const JOINTS = [
   { key: 'neck', label: 'Neck', body: 'head', a1: 'turns / nods', a2: 'tilts' },
@@ -13,9 +14,13 @@ const JOINTS = [
   { key: 'shoulderR', label: 'Right shoulder', body: 'armR', a1: 'raises / lowers', a2: 'swings' },
   { key: 'hipL', label: 'Left hip', body: 'legL', a1: 'steps', a2: 'spreads' },
   { key: 'hipR', label: 'Right hip', body: 'legR', a1: 'steps', a2: 'spreads' },
+  { key: 'elbowL', label: 'Left elbow', body: 'foreL', a1: 'bends', axes: 1 },
+  { key: 'elbowR', label: 'Right elbow', body: 'foreR', a1: 'bends', axes: 1 },
+  { key: 'kneeL', label: 'Left knee', body: 'shinL', a1: 'bends', axes: 1 },
+  { key: 'kneeR', label: 'Right knee', body: 'shinR', a1: 'bends', axes: 1 },
 ];
 
-const POSE_DEFAULTS = { neck: [10, 0], shoulderL: [45, 0], shoulderR: [45, 20], hipL: [15, 0], hipR: [-15, 0] };
+const POSE_DEFAULTS = { neck: [10, 0], shoulderL: [45, 0], shoulderR: [45, 20], hipL: [15, 0], hipR: [-15, 0], elbowL: [30], elbowR: [-20], kneeL: [-20], kneeR: [10] };
 
 const len = (key, label, def, min, max, group, help) => ({ key, label, type: 'length', default: def, min, max, group, help });
 
@@ -36,16 +41,17 @@ export default {
     len('headD', 'Head depth', 56, 40, 300, 'Body'),
     len('headH', 'Head height', 56, 35, 300, 'Body'),
     len('armS', 'Arm thickness', 44, 40, 200, 'Limbs', 'Arms are square boxes this wide.'),
-    len('armL', 'Arm length', 90, 40, 400, 'Limbs'),
+    len('armL', 'Arm length', 110, 40, 400, 'Limbs', 'Shoulder to hand, before the hinge gaps.'),
     len('legS', 'Leg thickness', 48, 40, 200, 'Limbs'),
-    len('legL', 'Leg length', 100, 40, 400, 'Limbs'),
+    len('legL', 'Leg length', 120, 40, 400, 'Limbs', 'Hip to foot, before the hinge gaps.'),
     len('finger', 'Finger width', 10, 3, 50, 'Limbs'),
     { key: 'neck', label: 'Neck joint', type: 'select', default: 'swivel', group: 'Limbs', choices: [{ value: 'swivel', label: 'Swivel (head turns)' }, { value: 'hinge', label: 'Same hinge as the limbs' }] },
+    { key: 'bends', label: 'Elbows and knees', type: 'bool', default: true, group: 'Limbs', help: 'Splits each arm and leg in two with a pin hinge in the middle.' },
     { key: 'face', label: 'Engrave a face', type: 'bool', default: true, group: 'Limbs' },
     ...HINGE_PARAMS.map(q => (q.key === 'cube' ? { ...q, default: 22 } : q.key === 'armW' ? { ...q, default: 18 } : q)),
     ...JOINTS.flatMap(j => [
-      { key: j.key + '1', label: `${j.label} (${j.a1})`, type: 'angle', default: POSE_DEFAULTS[j.key][0], min: -150, max: 150, step: 1, group: 'Pose' },
-      { key: j.key + '2', label: `${j.label} (${j.a2})`, type: 'angle', default: POSE_DEFAULTS[j.key][1], min: -150, max: 150, step: 1, group: 'Pose', help: 'Cross hinge only.' },
+      { key: j.key + '1', label: `${j.label} (${j.a1})`, type: 'angle', default: POSE_DEFAULTS[j.key][0], min: -150, max: 150, step: 1, group: 'Pose', help: j.axes === 1 ? 'Only with elbows and knees on.' : undefined },
+      ...(j.axes === 1 ? [] : [{ key: j.key + '2', label: `${j.label} (${j.a2})`, type: 'angle', default: POSE_DEFAULTS[j.key][1], min: -150, max: 150, step: 1, group: 'Pose', help: 'Cross hinge only.' }]),
     ]),
   ],
   generate(p, material) {
@@ -54,12 +60,14 @@ export default {
     const torso = box([p.torsoW, p.torsoD, p.torsoH], 'Torso', 'torso-');
     const parts = torso.parts.map(q => makePart({ ...q, body: 'torso' }));
     const hardware = [], joints = [], notes = [...torso.notes];
-    const hingeAt = (jt, port, B, portB, nameB, h = p) => {
-      const r = addHinge({ partsA: parts, portA: port, B, portB, h, t, bodies: { A: 'torso', B: jt.body, X: jt.key + '-x' }, label: jt.label, nameB });
+    const hingeAt = (jt, port, B, portB, nameB, h = p, bodyA = 'torso') => {
+      const r = addHinge({ partsA: parts, portA: port, B, portB, h, t, bodies: { A: bodyA, B: jt.body, X: jt.key + '-x' }, label: jt.label, nameB });
       parts.push(...r.parts);
       hardware.push(...r.hardware);
-      joints.push({ ...r.joint, key: jt.key });
+      const joint = { ...r.joint, key: jt.key };
+      joints.push(joint);
       notes.push(...B.notes, ...r.notes);
+      return { ...r, joint };
     };
     const J = Object.fromEntries(JOINTS.map(j => [j.key, j]));
     // Head on the top face
@@ -71,13 +79,29 @@ export default {
       front.engrave.push([[W * 0.3, H * 0.32], [W * 0.38, H * 0.27], [W * 0.62, H * 0.27], [W * 0.7, H * 0.32]]);
     }
     hingeAt(J.neck, portAt(torso, 'top'), head, 'bottom', '', p.neck === 'swivel' ? { ...p, hinge: 'swivel' } : p);
+    // A limb: one box, or (elbows and knees) an upper box with a lower box on a pin hinge below it.
+    // axis: the pin's direction at rest, so the lower part bends forwards and back once the limb hangs
+    // down (legs hang down at rest: x; arms stick out sideways at rest: z, which becomes x when lowered).
+    const limb = (jt, port, side, size, length, upper, lower, bend, axis) => {
+      const L1 = p.bends ? Math.max(40, Math.round(length / 2)) : length;
+      const r = hingeAt(jt, port, box([size, size, L1], upper, side + '-'), 'top');
+      if (!p.bends) return;
+      let pb = r.portsB.find(q => q.name === 'bottom');
+      if (Math.abs(v3.dot(pb.u, axis)) < 0.5) pb = { ...pb, u: pb.v, v: v3.scale(pb.u, -1) };
+      const r2 = hingeAt(bend, pb, box([size, size, Math.max(40, length - L1)], lower, side + '-lo-'), 'top', '', { ...p, hinge: 'pin' }, jt.body);
+      r.joint.carries = [bend.body, bend.key + '-x'];
+      return r2;
+    };
     // Arms near the top of the side faces (port v is up on side faces)
     const sh = Math.max(0, p.torsoH / 2 - t - Math.max(1, 0.6 * t) - Math.max(t, p.armW / 4) - 6);
-    hingeAt(J.shoulderL, portAt(torso, 'left', 0, sh), box([p.armS, p.armS, p.armL], 'Left arm', 'arm-l-'), 'top');
-    hingeAt(J.shoulderR, portAt(torso, 'right', 0, sh), box([p.armS, p.armS, p.armL], 'Right arm', 'arm-r-'), 'top');
+    const up = p.bends ? ['Left upper arm', 'Right upper arm', 'Left thigh', 'Right thigh'] : ['Left arm', 'Right arm', 'Left leg', 'Right leg'];
+    limb(J.shoulderL, portAt(torso, 'left', 0, sh), 'arm-l', p.armS, p.armL, up[0], 'Left forearm', J.elbowL, [0, 0, 1]);
+    limb(J.shoulderR, portAt(torso, 'right', 0, sh), 'arm-r', p.armS, p.armL, up[1], 'Right forearm', J.elbowR, [0, 0, 1]);
     // Legs side by side under the torso (bottom port u is +x)
-    hingeAt(J.hipL, portAt(torso, 'bottom', -p.torsoW / 4), box([p.legS, p.legS, p.legL], 'Left leg', 'leg-l-'), 'top');
-    hingeAt(J.hipR, portAt(torso, 'bottom', p.torsoW / 4), box([p.legS, p.legS, p.legL], 'Right leg', 'leg-r-'), 'top');
+    limb(J.hipL, portAt(torso, 'bottom', -p.torsoW / 4), 'leg-l', p.legS, p.legL, up[2], 'Left shin', J.kneeL, [1, 0, 0]);
+    limb(J.hipR, portAt(torso, 'bottom', p.torsoW / 4), 'leg-r', p.legS, p.legL, up[3], 'Right shin', J.kneeR, [1, 0, 0]);
+    // Parents before children: shoulders and hips before elbows and knees.
+    joints.sort((a, b) => JOINTS.findIndex(j => j.key === a.key) - JOINTS.findIndex(j => j.key === b.key));
 
     // Range of motion per joint (independent of the pose, so pose sliders reuse it)
     const key = JSON.stringify([t, ...this.params.filter(q => q.group !== 'Pose').map(q => p[q.key])]);

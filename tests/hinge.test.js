@@ -103,15 +103,18 @@ await test('robot: cross and pin versions are clean, every joint has a range, le
   for (const hinge of ['cross', 'pin']) for (const t of [3, 3.2]) {
     const d = robot.generate({ ...defaults(robot.params), hinge }, mat(t));
     assert.deepEqual(validate(d).filter(i => i.level !== 'info'), [], `${hinge} t${t}`);
-    assert.equal(d.joints.length, 5);
-    assert.equal(d.hardware.length, hinge === 'cross' ? 1 : 5);
+    assert.equal(d.joints.length, 9);
+    assert.equal(d.hardware.length, hinge === 'cross' ? 5 : 9);
     for (const j of d.joints) assert.ok(j.range.a1[0] <= -30 && j.range.a1[1] >= 30, `${j.label} ${JSON.stringify(j.range)}`);
     if (hinge === 'cross') {
       const L = d.joints.find(j => j.key === 'hipL').range.a2, R = d.joints.find(j => j.key === 'hipR').range.a2;
       assert.ok(Math.min(-L[0], R[1]) < 10 && Math.max(L[1], -R[0]) > 40, `${L} ${R}`);
     }
   }
-  const nod = robot.generate({ ...defaults(robot.params), neck: 'hinge' }, mat(3));
+  const plain = robot.generate({ ...defaults(robot.params), bends: false }, mat(3));
+  assert.equal(plain.joints.length, 5);
+  assert.deepEqual(validate(plain).filter(i => i.level !== 'info'), []);
+  const nod = robot.generate({ ...defaults(robot.params), neck: 'hinge', bends: false }, mat(3));
   assert.deepEqual(validate(nod).filter(i => i.level !== 'info'), []);
   assert.equal(nod.joints[0].type, 'cross');
   assert.equal(nod.hardware.length, 0);
@@ -129,4 +132,17 @@ await test('swivel coupon: discs on one dowel, holes snug/loose, turns all the w
   assert.match(d.info[0], /all the way round/);
   const turned = coupon.generate({ ...p, pose1: 45 }, mat(3));
   assert.deepEqual(validate(turned).filter(i => i.level !== 'info'), []);
+});
+
+await test('robot: elbows and knees bend forward, and the shoulder carries the forearm', async () => {
+  const robot = (await import('../src/generators/robot.js')).default;
+  const p = { ...defaults(robot.params), shoulderL1: 0, shoulderL2: 0, elbowL1: 0, hipL1: 0, hipL2: 0, kneeL1: 0 };
+  const rest = robot.generate(p, mat(3));
+  const J = k => rest.joints.find(j => j.key === k);
+  assert.ok(Math.abs(J('kneeL').ex[0]) > 0.99, 'knee axis runs side to side');
+  assert.ok(Math.abs(J('elbowL').ex[2]) > 0.99, 'elbow axis is vertical while the arm sticks out');
+  assert.deepEqual(J('shoulderL').carries, ['foreL', 'elbowL-x']);
+  const fore = d => d.parts.filter(q => q.body === 'foreL').map(q => q.place.o);
+  const lowered = robot.generate({ ...p, shoulderL1: 60 }, mat(3));
+  assert.notDeepEqual(fore(lowered), fore(rest), 'the forearm moves with the shoulder');
 });

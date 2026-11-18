@@ -51,3 +51,18 @@ await test('voxel sculpture: custom grid from the editor is used; empty grid is 
   assert.ok(e.notes.some(n => /empty/.test(n)));
   assert.equal(count(FIGURES.cat.make()) > 100, true);
 });
+
+await test('voxel sculpture: flat tiles (third family) hook into slots, validate, and come in build order', () => {
+  for (const figure of ['cat', 'rocket']) for (const families of ['xy', 'xz']) {
+    const d = voxel.generate({ ...defaults(voxel.params), figure, families, spacing: 2, third: true }, mat);
+    const W = { xy: 'Z', xz: 'Y' }[families];
+    const tiles = d.parts.filter(p => p.meta.family === W);
+    assert.ok(tiles.length > 10, `${figure} ${families} tiles ${tiles.length}`);
+    assert.deepEqual(validate(d).filter(i => i.level === 'error'), [], `${figure} ${families}`);
+    assert.equal(d.order.length, d.parts.length, 'every part has a place in the order');
+    assert.equal(d.order[0], d.parts.find(p => p.meta.family === 'X').id, 'starts with the first X piece');
+    assert.ok(d.info.some(n => n.includes('tiles fill in')));
+  }
+  const one = voxel.generate({ ...defaults(voxel.params), spacing: 1, third: true }, mat);
+  assert.ok(one.notes.some(n => n.includes('spacing of 2')));
+});

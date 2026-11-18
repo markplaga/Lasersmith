@@ -48,7 +48,7 @@ export function makePart(p) {
   };
 }
 
-export function makeDesign({ title, generator, material, parts, notes = [], info = [], ports = [], hardware = [], joints = [], kerfApplied = false, view = {} }) {
+export function makeDesign({ title, generator, material, parts, notes = [], info = [], ports = [], hardware = [], joints = [], kerfApplied = false, view = {}, order }) {
   return {
     format: FORMAT,
     version: 1,
@@ -64,6 +64,7 @@ export function makeDesign({ title, generator, material, parts, notes = [], info
     hardware,
     joints,
     view,
+    ...(order && order.length ? { order } : {}),
   };
 }
 
