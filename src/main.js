@@ -339,6 +339,28 @@ $('#stereoSel').addEventListener('change', e => {
   if (S.stereo !== 'off') toast(S.stereo === 'cross' ? 'Cross your eyes until the two pictures merge into a third in the middle' : 'Look through the screen until the two pictures merge');
   if (design) render();
 });
+/* ---------- maximize the preview ---------- */
+const viewEl = document.querySelector('.view');
+function setMax(on) {
+  on = !!on;
+  if (viewEl.classList.contains('max') === on) return;
+  viewEl.classList.toggle('max', on);
+  document.body.classList.toggle('view-max', on);
+  const b = $('#maxBtn');
+  b.setAttribute('aria-pressed', String(on));
+  b.title = on ? 'Restore preview (Esc)' : 'Maximize preview (Esc to restore)';
+  b.setAttribute('aria-label', on ? 'Restore preview' : 'Maximize preview');
+  // Real fullscreen when the page allows it; the CSS fill above covers the window either way.
+  try {
+    if (on && document.fullscreenEnabled && !document.fullscreenElement) viewEl.requestFullscreen().catch(() => {});
+    else if (!on && document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  } catch (e) { /* fullscreen blocked: the window fill is enough */ }
+  preview.reframe();
+  if (design) requestAnimationFrame(() => render());
+}
+$('#maxBtn').addEventListener('click', () => setMax(!viewEl.classList.contains('max')));
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && viewEl.classList.contains('max')) setMax(false); });
+document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && viewEl.classList.contains('max')) setMax(false); });
 $('#stereoDepthIn').addEventListener('input', e => { S.stereoDeg = +e.target.value; save(); preview.setStereo(S.stereo, S.stereoDeg); });
 $('#q').addEventListener('input', e => { S.q = e.target.value; renderLibrary(); });
 $('#reset').addEventListener('click', () => { delete S.params[S.entry]; save(); mountParams(); regenerate(true); });

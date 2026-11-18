@@ -211,5 +211,5 @@ export function createPreview(canvas) {
     if (deg) stereoDeg = deg;
   }
 
-  return { show, setExplode, setStereo, snapshot: () => canvas.toDataURL('image/png'), dispose() { cancelAnimationFrame(raf); clear(); renderer.dispose(); } };
+  return { show, setExplode, setStereo, reframe() { lastKey = ''; }, snapshot: () => canvas.toDataURL('image/png'), dispose() { cancelAnimationFrame(raf); clear(); renderer.dispose(); } };
 }

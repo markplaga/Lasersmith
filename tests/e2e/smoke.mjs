@@ -67,6 +67,22 @@ const halves = await page.evaluate(() => {
   return { l, r };
 });
 check(halves.l > 100 && halves.r > 100, 'stereo draws two pictures ' + JSON.stringify(halves));
+
+// maximize the preview (with stereo on), then restore with Esc
+const vsize = () => page.evaluate(() => { const r = document.getElementById('view').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; });
+const before = await vsize();
+await page.click('#maxBtn');
+await page.waitForTimeout(400);
+const maxed = await vsize();
+const vp = page.viewportSize();
+check(await page.evaluate(() => document.querySelector('.view').classList.contains('max')) && maxed[0] >= vp.width - 2 && maxed[1] >= vp.height - 2,
+  'maximize fills the window ' + JSON.stringify({ before, maxed }));
+check(await page.isVisible('#stereoSel') && await page.isVisible('#stereoSplit'), 'stereo controls stay on when maximized');
+await page.screenshot({ path: path.join(shots, 'stereo-maximized.png') });
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+const restored = await vsize();
+check(!(await page.evaluate(() => document.querySelector('.view').classList.contains('max'))) && restored[1] === before[1], 'Esc restores the preview ' + JSON.stringify(restored));
 await page.selectOption('#stereoSel', 'off');
 
 // export LBRN2
