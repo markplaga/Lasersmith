@@ -89,6 +89,33 @@ await page.waitForTimeout(300);
 await page.screenshot({ path: path.join(shots, 'coupon.png') });
 check(true, 'kerf coupon opens');
 
+// hinge coupon: cross hinge, posed with the slider, dowels in 3D
+await page.click('[data-id=hinge-coupon]');
+await page.waitForFunction(() => __lasersmith.design && __lasersmith.design.generator.id === 'hinge-coupon');
+st = await page.evaluate(() => ({ hw: __lasersmith.design.hardware.length, bad: __lasersmith.issues.filter(i => i.level !== 'info'), notes: [...document.querySelectorAll('#issues li.info')].length }));
+check(st.hw === 4 && st.bad.length === 0 && st.notes >= 1, 'cross hinge coupon: 4 dowels, clean, range-of-motion note ' + JSON.stringify(st));
+await page.fill('input[type=number][data-key=pose1]', '30');
+await page.fill('input[type=number][data-key=pose2]', '-20');
+await page.waitForFunction(() => __lasersmith.design.joints[0].a1 === 30 && __lasersmith.design.joints[0].a2 === -20);
+check(await page.inputValue('input[type=range][data-key=pose1]') === '30', 'pose slider follows the number box');
+await page.waitForTimeout(400);
+await page.screenshot({ path: path.join(shots, 'hinge-cross.png') });
+await page.selectOption('[data-key=hinge]', 'pin');
+await page.waitForFunction(() => __lasersmith.design.joints[0].type === 'pin');
+await page.waitForTimeout(400);
+await page.screenshot({ path: path.join(shots, 'hinge-pin.png') });
+check(true, 'pin hinge renders');
+
+// articulated robot
+await page.click('[data-id=robot]');
+await page.waitForFunction(() => __lasersmith.design && __lasersmith.design.generator.id === 'robot', null, { timeout: 30000 });
+st = await page.evaluate(() => ({ joints: __lasersmith.design.joints.length, bad: __lasersmith.issues.filter(i => i.level !== 'info').length }));
+check(st.joints === 5 && st.bad === 0, 'robot: 5 joints, clean ' + JSON.stringify(st));
+await page.fill('input[type=number][data-key=shoulderL1]', '70');
+await page.waitForFunction(() => __lasersmith.design.joints[1].a1 === 70);
+await page.waitForTimeout(400);
+await page.screenshot({ path: path.join(shots, 'robot.png') });
+
 if (pyDir) {
   await page.click('[data-id=bx-flexbox]');
   await page.waitForFunction(() => __lasersmith.design && __lasersmith.design.generator.id === 'bx-flexbox', null, { timeout: 120000 });

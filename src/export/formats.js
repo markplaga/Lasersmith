@@ -151,8 +151,15 @@ export function readme(nested, design) {
     'Layers (LightBurn palette): red = cut, blue = score, green = line engrave, black = fill engrave.',
     'Run engrave and score layers before cut. Inner cuts are listed before outer cuts.', '',
     'Parts:', ...design.parts.map(p => `  ${p.qty} x ${p.name}`), '',
-    'Made with Lasersmith (GPL-3.0).',
   ];
+  const hw = new Map();
+  for (const h of design.hardware || []) {
+    const k = h.kind === 'dowel' ? `${h.d} mm wood dowel, cut to ${h.len.toFixed(1)} mm` : h.name;
+    hw.set(k, (hw.get(k) || 0) + 1);
+  }
+  if (hw.size) lines.push('Hardware (not cut):', ...[...hw].map(([k, n]) => `  ${n} x ${k}`), '');
+  if ((design.info || []).length) lines.push('Notes:', ...design.info.map(n => '  ' + n), '');
+  lines.push('Made with Lasersmith (GPL-3.0).');
   return lines.join('\n') + '\n';
 }
 

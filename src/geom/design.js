@@ -6,7 +6,10 @@
 //   title, units: 'mm', generator: {id, params},
 //   material: {name, thickness, kerf},
 //   kerfApplied: bool          // true when geometry is already kerf-compensated (e.g. boxes.py with burn)
-//   parts: [Part], notes: [string], ports: []
+//   parts: [Part], notes: [string] (warnings), info: [string] (shown as notes),
+//   ports: [{name, part, o, u, v, n, size}]   // mounting frames on faces: o on the outer face, n outward
+//   hardware: [{kind: 'dowel', name, d, len, c, axis, body}]   // bought parts, shown in 3D and listed in the README
+//   joints: [{type, pivot, ex, ey, ez, a1, a2, range}]          // moving joints (posing, range of motion)
 // }
 // Part {
 //   id, name, qty,
@@ -16,7 +19,8 @@
 //   score: [polyline], engrave: [polyline],   // blue score lines, green line engrave
 //   fill: [loop],                             // black fill engrave
 //   place: {o, u, v, n} | null,               // 3D: point (x, y) maps to o + x*u + y*v, slab spans n in [-t/2, t/2]
-//   thickness, kerfApplied
+//   thickness, kerfApplied,
+//   body?: string                              // rigid group that moves together when a joint is posed
 // }
 
 import { area, bbox, offsetLoop } from './poly.js';
@@ -39,10 +43,12 @@ export function makePart(p) {
     place: p.place || null,
     thickness: p.thickness,
     kerfApplied: !!p.kerfApplied,
+    ...(p.body ? { body: p.body } : {}),
+    ...(p.meta ? { meta: p.meta } : {}),
   };
 }
 
-export function makeDesign({ title, generator, material, parts, notes = [], ports = [], kerfApplied = false, view = {} }) {
+export function makeDesign({ title, generator, material, parts, notes = [], info = [], ports = [], hardware = [], joints = [], kerfApplied = false, view = {} }) {
   return {
     format: FORMAT,
     version: 1,
@@ -53,7 +59,10 @@ export function makeDesign({ title, generator, material, parts, notes = [], port
     kerfApplied,
     parts: parts.map(p => makePart({ thickness: material.thickness, ...p, kerfApplied: p.kerfApplied ?? kerfApplied })),
     notes,
+    info,
     ports,
+    hardware,
+    joints,
     view,
   };
 }

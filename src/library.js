@@ -1,9 +1,11 @@
 // The M1 library: native generators plus the curated boxes.py catalogue.
 import fingerBox from './generators/fingerbox.js';
 import fitCoupon from './generators/fitcoupon.js';
+import hingeCoupon from './generators/hingecoupon.js';
+import robot from './generators/robot.js';
 import { BOXES_CATALOG } from './boxespy/catalog.js';
 
-export const NATIVE = [fingerBox, fitCoupon];
+export const NATIVE = [fingerBox, fitCoupon, hingeCoupon, robot];
 
 export const LIBRARY = [
   ...NATIVE.map(g => ({ id: g.id, title: g.title, category: g.category, source: 'native', description: g.description, tags: g.tags, gen: g })),

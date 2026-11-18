@@ -184,9 +184,11 @@ function renderSheets() {
 }
 
 function renderIssues() {
-  const errs = issues.filter(i => i.level === 'error'), warns = issues.filter(i => i.level !== 'error');
-  const li = i => `<li class="${i.level}"><b>${i.level === 'error' ? 'Error' : 'Warning'}</b>${i.part ? ` <em>${esc(i.part)}</em>` : ''} ${esc(i.msg)}</li>`;
-  $('#issues').innerHTML = issues.length ? errs.concat(warns).map(li).join('') : '<li class="ok"><b>Ready to cut</b> Outlines closed, parts fit the bed, no thin bridges' + (design && design.parts.some(p => p.place) ? ', no 3D overlaps.' : '.') + '</li>';
+  const errs = issues.filter(i => i.level === 'error'), warns = issues.filter(i => i.level === 'warn'), infos = issues.filter(i => i.level === 'info');
+  const word = { error: 'Error', warn: 'Warning', info: 'Note' };
+  const li = i => `<li class="${i.level}"><b>${word[i.level] || 'Note'}</b>${i.part ? ` <em>${esc(i.part)}</em>` : ''} ${esc(i.msg)}</li>`;
+  const ok = '<li class="ok"><b>Ready to cut</b> Outlines closed, parts fit the bed, no thin bridges' + (design && design.parts.some(p => p.place) ? ', no 3D overlaps.' : '.') + '</li>';
+  $('#issues').innerHTML = (errs.length || warns.length ? '' : ok) + errs.concat(warns, infos).map(li).join('');
   const blocked = hasErrors(issues);
   document.querySelectorAll('[data-export]').forEach(b => { b.disabled = blocked || !design; });
   $('#exportNote').textContent = blocked ? 'Fix the errors above to export.' : '';
