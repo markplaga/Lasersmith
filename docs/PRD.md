@@ -1,6 +1,6 @@
 # Lasersmith: Product Requirements Document
 
-**Status:** Draft v0.1 · **Owner:** Mark · **Last updated:** 2026-11-18
+**Status:** v0.2, decisions confirmed · **Owner:** Mark · **Last updated:** 2026-11-18
 
 Lasersmith is a public website for designing laser-cut objects. People pick a design from a shared library and tune its parameters until it fits their need, or (when Claude is available) describe something that does not exist yet and have Claude build it. Designs can be joined with wooden hinges into posable, articulated objects, and solid shapes can be turned into "voxel" sculptures made of interlocking flat planes. Every output is a cut-ready file for a 24" x 36" laser in LightBurn.
 
@@ -134,7 +134,7 @@ A small, documented API that native, Claude-made and user generators all use:
 
 ### 6.3 Running boxes.py generators
 
-boxes.py is Python, which the rest of the stack is not. Recommended approach: run it **in the browser with Pyodide** inside a Web Worker. Its dependencies (affine, shapely, qrcode, markdown) are pure Python or already packaged for Pyodide. This keeps the site static, works in Claude mode, and needs no Python server. Pyodide is a large first download (roughly 10 MB), so it loads only when a boxes.py design is opened and is cached after that.
+boxes.py is Python, which the rest of the stack is not. Decided approach: run it **in the browser with Pyodide** inside a Web Worker. Its dependencies (affine, shapely, qrcode, markdown) are pure Python or already packaged for Pyodide. This keeps the site static, works in Claude mode, and needs no Python server. Pyodide is a large first download (roughly 10 MB), so it loads only when a boxes.py design is opened and is cached after that.
 
 boxes.py output is SVG, so a thin adapter turns it into a Design document. boxes.py parts have no 3D placement, so 3D preview for those designs is limited to what the adapter can infer (flat-pack view always; folded 3D for a hand-annotated subset).
 
@@ -144,7 +144,7 @@ Fallback if Pyodide proves too heavy: a Python serverless function that runs box
 
 ### 6.4 Backend and hosting
 
-Recommended (see Q4):
+Decided (Q4):
 
 - **Hosting:** Netlify (already connected) for the static site, with **Netlify Functions in TypeScript** for the small API (save, publish, fork, search, Claude proxy for the site's own Claude connection if added later).
 - **Data, auth, storage:** Supabase (Postgres + auth + file storage). Postgres holds users, designs, versions, variants and tags; storage holds thumbnails and exported zips. Row-level security enforces private / unlisted / public.
@@ -193,7 +193,7 @@ A port is a named mounting point on a part face: a position, an outward normal, 
 - **Box B** has its own pair of arms that take the cross's other two nubs.
 - Result: Box B can tilt about two perpendicular axes relative to Box A, like a universal joint.
 
-Parameters: arm length, arm width, arm gap (fits the cross), hole diameter, cross bar width, cross size, clearance, pin type (Q2), and range-of-motion limits.
+Parameters: arm length, arm width, arm gap (fits the cross), hole diameter, cross bar width, cross size, clearance, pin type (Q2, decided), and range-of-motion limits.
 
 Lasersmith must:
 
@@ -202,7 +202,7 @@ Lasersmith must:
 - compute and show the range of motion in 3D, and flag where the boxes collide before the joint's limit;
 - size holes from material, kerf and the chosen pin type, and offer a **hinge test coupon** (one joint, small) so the fit can be checked before cutting a whole robot.
 
-Design risk: a flat-cut nub has a rectangular cross-section, so it does not rotate smoothly in a round hole. The default (Q2) is to use the nubs as **bosses drilled for a dowel pin**, i.e. the pin is round wood dowel and the nubs and arms both have round holes.
+Design risk: a flat-cut nub has a rectangular cross-section, so it does not rotate smoothly in a round hole. The default (Q2, decided) is to use the nubs as **bosses drilled for a dowel pin**, i.e. the pin is round wood dowel and the nubs and arms both have round holes.
 
 ## 8. Validation (applies to every design, including Claude's)
 
@@ -265,7 +265,7 @@ A design cannot be exported or published until these pass (warnings can be overr
 - Hinge test coupon fits first try with the default material profile at least 8 times in 10.
 - Over 80% of Claude-generated designs pass validation within the automatic repair rounds.
 
-## 14. Milestones (proposed)
+## 14. Milestones
 
 | # | Milestone | Contents |
 |---|---|---|
@@ -275,19 +275,19 @@ A design cannot be exported or published until these pass (warnings can be overr
 | **M4** | **Accounts + shared library** | Supabase, sign-in, save/fork/publish, public browse and search. |
 | **M5** | **Voxel sculptures** | Voxel editor, slicer, three-family interlock, assembly guide; Claude voxel generation. |
 
-M2 before M3 is deliberate: Claude needs the joint and port vocabulary to build an articulated robot well.
+M1 is the first milestone (Q5). M2 before M3 is deliberate: Claude needs the joint and port vocabulary to build an articulated robot well.
 
-## 15. Open questions (with recommended defaults)
+## 15. Decisions (confirmed by Mark, 2026-11-17)
 
-| # | Question | Recommended default |
+| # | Question | Decision |
 |---|---|---|
-| **Q1** | Material thickness and kerf? | Default to **3 mm (1/8") birch ply, kerf 0.15 mm**, but always use the measured thickness from the user's material profile and ship a fit-test coupon to calibrate. Add 6 mm ply as the second preset for load-bearing hinge parts. |
+| **Q1** | Material thickness and kerf? | **3 mm (1/8") birch ply, kerf 0.15 mm**, but always use the measured thickness from the user's material profile and ship a fit-test coupon to calibrate. Add 6 mm ply as the second preset for load-bearing hinge parts. |
 | **Q2** | Friction-fit vs dowel/bolt pins for posable joints? | **Wooden dowel pins** by default (e.g. 1/8" or 3 mm dowel). A round pin in a round hole turns smoothly, and pose-holding friction is tuned by hole clearance. Offer **M3 bolt + nyloc nut** as an option where adjustable tension matters. Offer all-laser-cut friction nubs only as an experimental option. |
 | **Q3** | Are voxel sculptures built in a browser 3D editor or described to Claude? | **Both.** The browser voxel editor is the standalone path and ships first; describing to Claude is added in Claude mode and outputs the same voxel grid so it can be edited by hand afterwards. Mesh import later. |
 | **Q4** | Hosting and backend language? | **Netlify** static hosting + **Netlify Functions in TypeScript**, **Supabase** for Postgres/auth/storage. Keeps one language (JS/TS) across front end, generators and backend; boxes.py runs client-side in Pyodide, so no Python server. |
 | **Q5** | First milestone? | **M1: local editor + export** (section 14), with no accounts or Claude, so the geometry core, export and the boxes.py bridge are proven on the real laser first. |
 | **Q6** | Should the artifact (Claude mode) be able to save to the public library? | Yes, after the user signs in from inside the artifact; otherwise "download design file" and import on the site. |
-| **Q7** | Licence? | **Decided (Mark, 2026-11-17): GPL-3.0**, to match boxes.py, which Lasersmith ships to browsers. `LICENSE` added at the repo root. |
+| **Q7** | Licence? | **GPL-3.0**, to match boxes.py, which Lasersmith ships to browsers. `LICENSE` added at the repo root. |
 | **Q8** | Who can publish Claude-generated generators publicly? | Any signed-in user, but only after the validator passes and the code runs in the sandbox; flag "Claude-made" on the entry. |
 
 ## 16. References
