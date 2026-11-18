@@ -284,8 +284,21 @@ document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('clic
   if (kind === 'lbrn2') saveFile(base + '.lbrn2', sheetLBRN2(sh, design), 'application/xml');
   const e = entryOf(S.entry);
   const extra = e.source === 'claude' ? [{ name: slug(e.title) + '.generator.js', data: generatorFile(e) }] : [];
-  if (kind === 'zip') saveFile(slug(design.title) + '.zip', new Blob([exportBundle(nested, design, { extra })], { type: 'application/zip' }));
+  if (kind === 'zip') saveFile(slug(design.title) + '.zip', new Blob([exportBundle(nested, design, { extra, image: guideImage() })], { type: 'application/zip' }));
 }));
+
+/** A picture of the assembled design for the assembly guide (normal view, whatever the stereo setting). */
+function guideImage() {
+  if (!design.parts.some(p => p.place) || S.view === 'flat') return null;
+  try {
+    if (S.stereo === 'off') return preview.snapshot();
+    preview.setStereo('off', S.stereoDeg); preview.show(design, nested, { mode: S.view, material: S.material, reframe: true });
+    preview.renderNow();
+    const img = preview.snapshot();
+    applyStereo(); render();
+    return img;
+  } catch (e) { return null; }
+}
 
 /* ---------- material + machine ---------- */
 function mountMaterial() {
@@ -332,6 +345,10 @@ document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('cl
   document.querySelectorAll('#viewSeg button').forEach(x => x.classList.toggle('on', x === b));
   if (design) render();
 }));
+$('#assembleBtn').addEventListener('click', () => {
+  if (preview.assembling) { preview.stopAssemble(); return; }
+  if (preview.assemble(() => { $('#assembleBtn').textContent = 'Assemble ▶'; })) $('#assembleBtn').textContent = 'Stop ■';
+});
 $('#explode').addEventListener('input', e => { S.explode = +e.target.value; preview.setExplode(S.explode); });
 function applyStereo() {
   preview.setStereo(S.stereo, S.stereoDeg);

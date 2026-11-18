@@ -91,6 +91,14 @@ const body = fs.readFileSync(await dl.path(), 'utf8');
 check(body.includes('<LightBurnProject'), 'LBRN2 download');
 const [dz] = await Promise.all([page.waitForEvent('download'), page.click('[data-export=zip]')]);
 check(fs.statSync(await dz.path()).size > 1000, 'zip download');
+check(fs.readFileSync(await dz.path()).includes('assembly-guide.html'), 'zip has the assembly guide');
+// assemble animation runs and hands the button back
+await page.click('#assembleBtn');
+await page.waitForTimeout(300);
+check((await page.textContent('#assembleBtn')).includes('Stop'), 'assemble animation starts');
+await page.screenshot({ path: path.join(shots, 'assembling.png') });
+await page.waitForFunction(() => document.getElementById('assembleBtn').textContent.includes('Assemble'), null, { timeout: 10000 });
+check(true, 'assemble animation finishes');
 
 // inches
 await page.click('#unitSeg [data-u=in]');

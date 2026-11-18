@@ -129,6 +129,8 @@ body.view-max{overflow:hidden}
 .vbar{position:absolute;left:12px;right:12px;bottom:12px;display:flex;align-items:center;gap:10px;background:color-mix(in srgb,var(--panel) 85%,transparent);backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:999px;padding:6px 14px}
 .vbar span{font:500 11px "IBM Plex Mono",monospace;color:var(--mute);letter-spacing:.1em;text-transform:uppercase}
 .vbar input{flex:1}
+#assembleBtn{border:0;background:none;color:var(--wood);font:600 12px "IBM Plex Mono",monospace;letter-spacing:.06em;cursor:pointer;padding:2px 4px;white-space:nowrap}
+#assembleBtn:hover{color:var(--ink)}
 #stereoSel{width:auto;max-width:none;font-size:12.5px;padding:5px 8px;background:color-mix(in srgb,var(--panel) 85%,transparent)}
 .depth{display:flex;align-items:center;gap:6px;font:500 11px "IBM Plex Mono",monospace;color:var(--mute);background:color-mix(in srgb,var(--panel) 85%,transparent);border:1px solid var(--line);border-radius:999px;padding:4px 10px}
 .depth input{width:90px}
@@ -221,7 +223,7 @@ footer a{color:inherit}
           <select id="stereoSel" title="Stereoscopic 3D" aria-label="Stereoscopic 3D"><option value="off">Normal view</option><option value="cross">Stereo · cross-eyed</option><option value="parallel">Stereo · parallel</option></select>
           <label id="stereoDepth" class="depth" hidden>Depth <input type="range" id="stereoDepthIn" min="1" max="8" step="0.5" aria-label="Stereo depth"></label></div>
         <div class="stereo-split" id="stereoSplit" hidden></div>
-        <div class="vbar" id="explodeWrap"><span>Explode</span><input id="explode" type="range" min="0" max="0.8" step="0.01" aria-label="Explode"></div>
+        <div class="vbar" id="explodeWrap"><span>Explode</span><input id="explode" type="range" min="0" max="0.8" step="0.01" aria-label="Explode"><button id="assembleBtn" type="button" title="Show how the parts go together">Assemble ▶</button></div>
         <div id="status" hidden></div>
       </section>
       <section class="card">
