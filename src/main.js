@@ -22,6 +22,8 @@ const S = {
   units: 'mm',
   view: '3d',
   explode: 0,
+  stereo: 'off',
+  stereoDeg: 3.5,
   sheet: 0,
   q: '',
 };
@@ -292,6 +294,19 @@ document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('cl
   if (design) render();
 }));
 $('#explode').addEventListener('input', e => { S.explode = +e.target.value; preview.setExplode(S.explode); });
+function applyStereo() {
+  preview.setStereo(S.stereo, S.stereoDeg);
+  $('#stereoSel').value = S.stereo;
+  $('#stereoDepthIn').value = S.stereoDeg;
+  $('#stereoDepth').hidden = S.stereo === 'off';
+  $('#stereoSplit').hidden = S.stereo === 'off';
+}
+$('#stereoSel').addEventListener('change', e => {
+  S.stereo = e.target.value; save(); applyStereo();
+  if (S.stereo !== 'off') toast(S.stereo === 'cross' ? 'Cross your eyes until the two pictures merge into a third in the middle' : 'Look through the screen until the two pictures merge');
+  if (design) render();
+});
+$('#stereoDepthIn').addEventListener('input', e => { S.stereoDeg = +e.target.value; save(); preview.setStereo(S.stereo, S.stereoDeg); });
 $('#q').addEventListener('input', e => { S.q = e.target.value; renderLibrary(); });
 $('#reset').addEventListener('click', () => { delete S.params[S.entry]; save(); mountParams(); regenerate(true); });
 
@@ -309,6 +324,7 @@ $('#reset').addEventListener('click', () => { delete S.params[S.entry]; save(); 
 /* ---------- boot ---------- */
 document.querySelectorAll('#viewSeg button').forEach(x => x.classList.toggle('on', x.dataset.v === S.view));
 $('#explode').value = S.explode;
+applyStereo();
 $('#q').value = S.q;
 mountMaterial();
 if (!byId(S.entry)) S.entry = 'finger-box';
