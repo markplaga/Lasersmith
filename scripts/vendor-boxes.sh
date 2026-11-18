@@ -14,7 +14,7 @@ cp "$SRC/LICENSE.txt" "$DEST/boxes/LICENSE.txt" 2>/dev/null || cp "$SRC/LICENSE"
 pip download --no-deps --only-binary=:all: -d "$TMP" "affine==2.4.0" "qrcode==8.2" "markdown==3.11.3" >/dev/null
 for w in "$TMP"/*.whl; do (cd "$TMP" && python3 -m zipfile -e "$w" "$TMP/x"); done
 for pkg in affine qrcode markdown; do cp -r "$TMP/x/$pkg" "$DEST/$pkg"; done
-rm -rf "$DEST/affine/tests"
+rm -rf "$DEST/affine/tests" "$DEST/qrcode/tests"
 for lic in "$TMP"/x/*.dist-info; do name=$(basename "$lic" | cut -d- -f1); find "$lic" -type f -iname 'LICENSE*' -exec cp {} "$DEST/$name.LICENSE" \; ; done
 find "$DEST" -name '__pycache__' -prune -exec rm -rf {} +
 rm -rf "$TMP"
