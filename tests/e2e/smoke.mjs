@@ -85,6 +85,18 @@ const restored = await vsize();
 check(!(await page.evaluate(() => document.querySelector('.view').classList.contains('max'))) && restored[1] === before[1], 'Esc restores the preview ' + JSON.stringify(restored));
 await page.selectOption('#stereoSel', 'off');
 
+// stock sheets and grain lock
+await page.selectOption('#stockSel', '12x12');
+await page.waitForTimeout(400);
+st = await page.evaluate(() => ({ w: __lasersmith.nested.sheets[0].w, n: __lasersmith.nested.sheets.length }));
+check(Math.abs(st.w - 304.8) < 0.01 && st.n >= 1, '12 x 12 in stock sheets ' + JSON.stringify(st));
+await page.selectOption('#grainSel', 'x');
+await page.waitForTimeout(400);
+check(await page.evaluate(() => __lasersmith.nested.sheets.every(s => s.items.every(i => !i.rot))), 'grain lock keeps parts unturned');
+await page.selectOption('#stockSel', 'bed');
+await page.selectOption('#grainSel', 'free');
+await page.waitForTimeout(300);
+
 // export LBRN2
 const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-export=lbrn2]')]);
 const body = fs.readFileSync(await dl.path(), 'utf8');

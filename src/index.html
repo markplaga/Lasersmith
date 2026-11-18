@@ -211,6 +211,12 @@ footer a{color:inherit}
         <div class="row"><label for="bedW">Bed width (X)</label><span class="num"><input id="bedW" type="number" step="1" inputmode="decimal"><i class="u">mm</i></span></div>
         <div class="row"><label for="bedH">Bed height (Y) <button class="btn ghost" id="bedSwap" style="padding:2px 8px;font-size:11px;font-weight:500" title="Swap width and height">swap</button></label><span class="num"><input id="bedH" type="number" step="1" inputmode="decimal"><i class="u">mm</i></span></div>
         <div class="row"><label for="margin">Sheet margin</label><span class="num"><input id="margin" type="number" step="0.5" inputmode="decimal"><i class="u">mm</i></span></div>
+        <div class="row"><label for="stockSel">Stock sheets<small>The sheets you cut from, if smaller than the bed.</small></label><select id="stockSel"></select></div>
+        <div id="stockCustom" hidden>
+          <div class="row"><label for="stockW">Stock width (X)</label><span class="num"><input id="stockW" type="number" step="1" inputmode="decimal"><i class="u">mm</i></span></div>
+          <div class="row"><label for="stockH">Stock height (Y)</label><span class="num"><input id="stockH" type="number" step="1" inputmode="decimal"><i class="u">mm</i></span></div>
+        </div>
+        <div class="row"><label for="grainSel">Wood grain<small>Lock it to keep every part's grain running the same way (parts are not turned to fit).</small></label><select id="grainSel"><option value="free">Parts may turn</option><option value="x">Grain along X, locked</option></select></div>
       </section>
     </div>
 

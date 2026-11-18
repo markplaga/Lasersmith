@@ -24,4 +24,23 @@ export const MATERIALS = [
 ];
 
 /** Mark's machine: 24" x 36" bed (X 36", Y 24"), LightBurn. */
-export const MACHINE = { bedW: 914.4, bedH: 609.6, margin: 5, gap: 3 };
+export const MACHINE = { bedW: 914.4, bedH: 609.6, margin: 5, gap: 3, stock: 'bed', stockW: 609.6, stockH: 304.8, grain: 'free' };
+
+/** Common stock sheet sizes (inches, as sold), plus the full bed and a custom size. */
+export const STOCK = [
+  { id: 'bed', label: 'Full bed' },
+  { id: '12x12', label: '12 x 12 in', w: 304.8, h: 304.8 },
+  { id: '12x24', label: '24 x 12 in', w: 609.6, h: 304.8 },
+  { id: '18x24', label: '24 x 18 in', w: 609.6, h: 457.2 },
+  { id: '24x24', label: '24 x 24 in', w: 609.6, h: 609.6 },
+  { id: 'custom', label: 'Custom size' },
+];
+
+/** The sheet the parts are nested on: the stock size, never larger than the bed. */
+export function sheetSize(m) {
+  const st = STOCK.find(s => s.id === m.stock) || STOCK[0];
+  let w = +m.bedW, h = +m.bedH;
+  if (st.id === 'custom') { w = +m.stockW || w; h = +m.stockH || h; }
+  else if (st.w) { w = st.w; h = st.h; }
+  return { w: Math.min(w, +m.bedW), h: Math.min(h, +m.bedH), stock: st.id !== 'bed', label: st.id === 'bed' ? 'bed' : 'stock sheet' };
+}

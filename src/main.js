@@ -1,5 +1,5 @@
 // Lasersmith app shell: library -> parameters -> Design document -> validation, nesting, preview, export.
-import { LIBRARY, byId, MATERIALS, MACHINE } from './library.js';
+import { LIBRARY, byId, MATERIALS, MACHINE, STOCK, sheetSize } from './library.js';
 import { renderParams, defaults, fmtLen } from './ui/params.js';
 import { createPreview } from './ui/preview3d.js';
 import { validate, hasErrors } from './geom/validate.js';
@@ -59,7 +59,7 @@ let mine = loadMine();
 const entryOf = id => mine.find(e => e.id === id) || byId(id);
 const sandbox = createSandbox(document.getElementById('ls-genworker')?.textContent || '');
 const matNow = () => ({ name: S.material.name, thickness: +S.material.thickness, kerf: +S.material.kerf });
-const rules = () => ({ bedW: +S.machine.bedW, bedH: +S.machine.bedH, margin: +S.machine.margin });
+const rules = () => { const z = sheetSize(S.machine); return { bedW: z.w, bedH: z.h, margin: +S.machine.margin, sheetName: z.label, rotate: S.machine.grain !== 'x' }; };
 
 /* ---------- 3D ---------- */
 const preview = createPreview($('#view'));
@@ -178,7 +178,8 @@ async function run() {
     if (my !== gen) return;
     design = d;
     issues = validate(design, rules());
-    nested = nest(design, { sheetW: +S.machine.bedW, sheetH: +S.machine.bedH, margin: +S.machine.margin, gap: +S.machine.gap });
+    const z = sheetSize(S.machine);
+    nested = nest(design, { sheetW: z.w, sheetH: z.h, margin: +S.machine.margin, gap: +S.machine.gap, rotate: S.machine.grain !== 'x' });
     if (S.sheet >= nested.sheets.length) S.sheet = 0;
     render();
     setStatus('', false);
@@ -308,6 +309,11 @@ function mountMaterial() {
   $('#bedW').value = fmtLen(S.machine.bedW, S.units);
   $('#bedH').value = fmtLen(S.machine.bedH, S.units);
   $('#margin').value = fmtLen(S.machine.margin, S.units);
+  $('#stockSel').innerHTML = STOCK.map(s => `<option value="${s.id}" ${s.id === (S.machine.stock || 'bed') ? 'selected' : ''}>${esc(s.label)}</option>`).join('');
+  $('#stockCustom').hidden = S.machine.stock !== 'custom';
+  $('#stockW').value = fmtLen(S.machine.stockW, S.units);
+  $('#stockH').value = fmtLen(S.machine.stockH, S.units);
+  $('#grainSel').value = S.machine.grain || 'free';
   document.querySelectorAll('.u').forEach(el => { el.textContent = S.units; });
   document.querySelectorAll('#unitSeg button').forEach(b => b.classList.toggle('on', b.dataset.u === S.units));
 }
@@ -329,7 +335,9 @@ $('#kerf').addEventListener('input', e => {
   S.material = { ...S.material, kerf: v };
   save(); regenerate();
 });
-for (const k of ['bedW', 'bedH', 'margin']) {
+$('#stockSel').addEventListener('change', e => { S.machine.stock = e.target.value; S.sheet = 0; save(); mountMaterial(); regenerate(); });
+$('#grainSel').addEventListener('change', e => { S.machine.grain = e.target.value; save(); regenerate(); });
+for (const k of ['bedW', 'bedH', 'margin', 'stockW', 'stockH']) {
   $('#' + k).addEventListener('input', e => {
     const v = toMM(parseFloat(e.target.value));
     if (!(v >= 0)) return;
@@ -483,7 +491,7 @@ const panel = mountClaudePanel($('#claudeCard'), {
   currentEntry: () => entryOf(S.entry),
   currentParams,
   material: matNow,
-  machine: () => ({ ...S.machine }),
+  machine: () => { const z = sheetSize(S.machine); return { ...S.machine, sheetW: z.w, sheetH: z.h }; },
   run: (src, params) => sandbox.run(src, params, matNow()),
   check: d => validate(d, rules()).filter(i => i.level === 'error').map(i => (i.part ? i.part + ': ' : '') + i.msg),
   onResult: r => addOrUpdate({ code: r.source, meta: r.meta, chat: r.chat, changing: r.changing }),
