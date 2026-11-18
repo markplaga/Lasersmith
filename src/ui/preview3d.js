@@ -24,7 +24,7 @@ export function createPreview(canvas) {
   scene.add(fill);
   const root = new THREE.Group();
   scene.add(root);
-  let meshes = [], lastKey = '', explode = 0, center = new THREE.Vector3();
+  let meshes = [], dowels = [], lastKey = '', explode = 0, center = new THREE.Vector3();
 
   function resize() {
     const w = canvas.clientWidth, h = canvas.clientHeight;
@@ -74,6 +74,7 @@ export function createPreview(canvas) {
     root.traverse(o => { if (o.geometry) o.geometry.dispose(); });
     root.clear();
     meshes = [];
+    dowels = [];
   }
 
   function shapeFrom(outline, holes, circles, T = p => p) {
@@ -121,6 +122,19 @@ export function createPreview(canvas) {
     return g;
   }
 
+  const dowelMat = new THREE.MeshStandardMaterial({ color: 0xd8b47a, roughness: 0.6, metalness: 0 });
+  const Y = new THREE.Vector3(0, 1, 0);
+  function addDowel(hw) {
+    const geo = new THREE.CylinderGeometry(hw.d / 2, hw.d / 2, hw.len, 20);
+    const m = new THREE.Mesh(geo, dowelMat);
+    m.quaternion.setFromUnitVectors(Y, new THREE.Vector3(...hw.axis).normalize());
+    m.position.set(...hw.c);
+    m.userData.base = m.position.clone();
+    m.userData.dowel = hw;
+    root.add(m);
+    dowels.push(m);
+  }
+
   /**
    * @param design Design document
    * @param nested nesting result (for the flat view and unplaced parts)
@@ -134,6 +148,7 @@ export function createPreview(canvas) {
     const sheetLines = [];
     if (assembled) {
       for (const p of design.parts) if (p.place) addPart(p, p.thickness || t, mm, placeMatrix(p.place), q => q);
+      for (const hw of design.hardware || []) if (hw.kind === 'dowel') addDowel(hw);
     } else {
       let ox = 0;
       for (const sh of nested.sheets) {
@@ -183,6 +198,10 @@ export function createPreview(canvas) {
       m.elements[12] += d.x * k; m.elements[13] += d.y * k; m.elements[14] += d.z * k;
       g.matrix.copy(m);
     }
+    for (const d of dowels) {
+      const b = d.userData.base;
+      d.position.set(b.x + (b.x - center.x) * k, b.y + (b.y - center.y) * k, b.z + (b.z - center.z) * k);
+    }
   }
 
   /** mode 'off' | 'cross' | 'parallel'; deg = convergence angle (depth) */
@@ -192,5 +211,5 @@ export function createPreview(canvas) {
     if (deg) stereoDeg = deg;
   }
 
-  return { show, setExplode, setStereo, snapshot: () => canvas.toDataURL('image/png'), dispose() { cancelAnimationFrame(raf); clear(); renderer.dispose(); } };
+  return { show, setExplode, setStereo, reframe() { lastKey = ''; }, snapshot: () => canvas.toDataURL('image/png'), dispose() { cancelAnimationFrame(raf); clear(); renderer.dispose(); } };
 }

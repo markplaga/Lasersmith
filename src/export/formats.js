@@ -128,7 +128,7 @@ export function makeZip(files) {
 }
 
 /** All sheets in every format plus a README, as one zip. */
-export function exportBundle(nested, design, { formats = ['svg', 'dxf', 'lbrn2'] } = {}) {
+export function exportBundle(nested, design, { formats = ['svg', 'dxf', 'lbrn2'], extra = [] } = {}) {
   const base = slug(design.title);
   const files = [];
   nested.sheets.forEach((s, i) => {
@@ -137,7 +137,7 @@ export function exportBundle(nested, design, { formats = ['svg', 'dxf', 'lbrn2']
     if (formats.includes('dxf')) files.push({ name: `${base}${n}.dxf`, data: sheetDXF(s, design) });
     if (formats.includes('lbrn2')) files.push({ name: `${base}${n}.lbrn2`, data: sheetLBRN2(s, design) });
   });
-  files.push({ name: 'README.txt', data: readme(nested, design) });
+  files.push({ name: 'README.txt', data: readme(nested, design) }, ...extra);
   files.push({ name: `${base}.lasersmith.json`, data: JSON.stringify({ format: design.format, version: design.version, title: design.title, generator: design.generator, material: design.material }, null, 2) });
   return makeZip(files);
 }
@@ -151,8 +151,15 @@ export function readme(nested, design) {
     'Layers (LightBurn palette): red = cut, blue = score, green = line engrave, black = fill engrave.',
     'Run engrave and score layers before cut. Inner cuts are listed before outer cuts.', '',
     'Parts:', ...design.parts.map(p => `  ${p.qty} x ${p.name}`), '',
-    'Made with Lasersmith (GPL-3.0).',
   ];
+  const hw = new Map();
+  for (const h of design.hardware || []) {
+    const k = h.kind === 'dowel' ? `${h.d} mm wood dowel, cut to ${h.len.toFixed(1)} mm` : h.name;
+    hw.set(k, (hw.get(k) || 0) + 1);
+  }
+  if (hw.size) lines.push('Hardware (not cut):', ...[...hw].map(([k, n]) => `  ${n} x ${k}`), '');
+  if ((design.info || []).length) lines.push('Notes:', ...design.info.map(n => '  ' + n), '');
+  lines.push('Made with Lasersmith (GPL-3.0).');
   return lines.join('\n') + '\n';
 }
 

@@ -61,12 +61,13 @@ const inlineScript = s => s.replace(/<\/script/gi, '<\\/script');
 
 export async function build() {
   fs.mkdirSync(DIST, { recursive: true });
-  const [app, worker] = await Promise.all([bundle('src/main.js'), bundle('src/boxespy/worker.js')]);
+  const [app, worker, genWorker] = await Promise.all([bundle('src/main.js'), bundle('src/boxespy/worker.js'), bundle('src/claude/genworker.js')]);
   const zip = pythonBundle();
   const tpl = fs.readFileSync(path.join(ROOT, 'src', 'index.html'), 'utf8');
   const page = (cfg, zipTag) => tpl
     .replace('<!--CONFIG-->', () => `<script>window.LASERSMITH_CONFIG=${JSON.stringify(cfg)}</script>`)
     .replace('<!--WORKER-->', () => `<script type="text/plain" id="ls-worker">${inlineScript(worker)}</script>`)
+    .replace('<!--GENWORKER-->', () => `<script type="text/plain" id="ls-genworker">${inlineScript(genWorker)}</script>`)
     .replace('<!--BOXESZIP-->', () => zipTag)
     .replace('/*APP*/', () => inlineScript(app));
   const site = page({ boxesZip: 'boxespy.zip', build: 'site' }, '');

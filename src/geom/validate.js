@@ -40,9 +40,17 @@ export function validate(design, rules = {}) {
     }
   }
   if (R.collision && design.parts.filter(p => p.place).length > 1) {
-    for (const c of collisions(design)) issues.push({ level: 'error', code: 'collision', msg: `${c.a} and ${c.b} overlap in 3D near (${c.at.map(v => v.toFixed(1)).join(', ')}) mm.`, part: c.a });
+    const posed = (design.joints || []).some(j => j.a1 || j.a2);
+    const bodyOf = new Map(design.parts.map(p => [p.name, p.body]));
+    for (const c of collisions(design)) {
+      const at = c.at.map(v => v.toFixed(1)).join(', ');
+      // Parts that only meet because a joint is posed past its range: the cut files are still fine.
+      if (posed && bodyOf.get(c.a) !== bodyOf.get(c.b)) issues.push({ level: 'warn', code: 'pose-collision', msg: `At this pose ${c.a} hits ${c.b} near (${at}) mm. Bring the pose back inside the range of motion.`, part: c.a });
+      else issues.push({ level: 'error', code: 'collision', msg: `${c.a} and ${c.b} overlap in 3D near (${at}) mm.`, part: c.a });
+    }
   }
   for (const n of design.notes || []) issues.push({ level: 'warn', code: 'note', msg: n });
+  for (const n of design.info || []) issues.push({ level: 'info', code: 'info', msg: n });
   return issues;
 }
 
@@ -91,42 +99,56 @@ function inside(part, pt, insetLoops) {
 
 /** Sample each placed part's volume and test the points against every other part's volume. */
 export function collisions(design, { eps = 0.05, step } = {}) {
-  const t = design.material.thickness;
   const placed = design.parts.filter(p => p.place);
+  return collisionPairs(design.material.thickness, placed, (i, j) => j > i ? [placed[i], placed[j]] : null, { eps, step });
+}
+
+/** Collisions only between parts of two groups (e.g. two bodies of a posed joint). Stops at the first hit if `first`. */
+export function collisionsBetween(t, groupA, groupB, { eps = 0.05, step, first = false } = {}) {
+  const all = groupA.concat(groupB), n = groupA.length;
+  return collisionPairs(t, all, (i, j) => (i < n && j >= n ? [all[i], all[j]] : null), { eps, step, first });
+}
+
+function collisionPairs(t, placed, pairOf, { eps, step, first }) {
   const h = step || Math.max(0.4, Math.min(1.5, t / 2));
   const inset = new Map(placed.map(p => {
     const th = p.thickness || t;
     return [p, { outline: offsetLoop(p.outline, -eps), holes: p.holes.map(l => offsetLoop(l, eps)), e: eps, th, box: worldAABB(p, th) }];
   }));
   const hits = [];
-  for (let i = 0; i < placed.length; i++) for (let j = i + 1; j < placed.length; j++) {
-    const A = placed[i], B = placed[j], IA = inset.get(A), IB = inset.get(B);
-    const lo = [0, 1, 2].map(k => Math.max(IA.box.lo[k], IB.box.lo[k]));
-    const hi = [0, 1, 2].map(k => Math.min(IA.box.hi[k], IB.box.hi[k]));
-    if (lo.some((v, k) => v >= hi[k] - eps)) continue;
-    // Intersection box corners in A's local frame bound the sample window
-    const { o, u, v } = A.place;
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (const X of [lo[0], hi[0]]) for (const Y of [lo[1], hi[1]]) for (const Z of [lo[2], hi[2]]) {
-      const d = [X - o[0], Y - o[1], Z - o[2]];
-      const lx = d[0] * u[0] + d[1] * u[1] + d[2] * u[2], ly = d[0] * v[0] + d[1] * v[1] + d[2] * v[2];
-      x0 = Math.min(x0, lx); x1 = Math.max(x1, lx); y0 = Math.min(y0, ly); y1 = Math.max(y1, ly);
-    }
-    let hit = null;
-    const ws = [-IA.th / 2 + eps, 0, IA.th / 2 - eps];
-    for (let x = x0 + h * 0.37; x < x1 && !hit; x += h) for (let y = y0 + h * 0.41; y < y1 && !hit; y += h) {
-      if (!inside(A, [x, y], IA)) continue;
-      for (const w of ws) {
-        const P = toWorld(A.place, x, y, w);
-        const B0 = B.place.o, d = [P[0] - B0[0], P[1] - B0[1], P[2] - B0[2]];
-        const bw = d[0] * B.place.n[0] + d[1] * B.place.n[1] + d[2] * B.place.n[2];
-        if (Math.abs(bw) >= IB.th / 2 - eps) continue;
-        const bx = d[0] * B.place.u[0] + d[1] * B.place.u[1] + d[2] * B.place.u[2];
-        const by = d[0] * B.place.v[0] + d[1] * B.place.v[1] + d[2] * B.place.v[2];
-        if (inside(B, [bx, by], IB)) { hit = { a: A.name, b: B.name, at: P }; break; }
-      }
-    }
-    if (hit) hits.push(hit);
+  for (let i = 0; i < placed.length; i++) for (let j = 0; j < placed.length; j++) {
+    const pr = pairOf(i, j);
+    if (!pr) continue;
+    const hit = pairHit(pr[0], pr[1], inset.get(pr[0]), inset.get(pr[1]), h, eps);
+    if (hit) { hits.push(hit); if (first) return hits; }
   }
   return hits;
+}
+
+function pairHit(A, B, IA, IB, h, eps) {
+  const lo = [0, 1, 2].map(k => Math.max(IA.box.lo[k], IB.box.lo[k]));
+  const hi = [0, 1, 2].map(k => Math.min(IA.box.hi[k], IB.box.hi[k]));
+  if (lo.some((v, k) => v >= hi[k] - eps)) return null;
+  // Intersection box corners in A's local frame bound the sample window
+  const { o, u, v } = A.place;
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const X of [lo[0], hi[0]]) for (const Y of [lo[1], hi[1]]) for (const Z of [lo[2], hi[2]]) {
+    const d = [X - o[0], Y - o[1], Z - o[2]];
+    const lx = d[0] * u[0] + d[1] * u[1] + d[2] * u[2], ly = d[0] * v[0] + d[1] * v[1] + d[2] * v[2];
+    x0 = Math.min(x0, lx); x1 = Math.max(x1, lx); y0 = Math.min(y0, ly); y1 = Math.max(y1, ly);
+  }
+  const ws = [-IA.th / 2 + eps, 0, IA.th / 2 - eps];
+  for (let x = x0 + h * 0.37; x < x1; x += h) for (let y = y0 + h * 0.41; y < y1; y += h) {
+    if (!inside(A, [x, y], IA)) continue;
+    for (const w of ws) {
+      const P = toWorld(A.place, x, y, w);
+      const B0 = B.place.o, d = [P[0] - B0[0], P[1] - B0[1], P[2] - B0[2]];
+      const bw = d[0] * B.place.n[0] + d[1] * B.place.n[1] + d[2] * B.place.n[2];
+      if (Math.abs(bw) >= IB.th / 2 - eps) continue;
+      const bx = d[0] * B.place.u[0] + d[1] * B.place.u[1] + d[2] * B.place.u[2];
+      const by = d[0] * B.place.v[0] + d[1] * B.place.v[1] + d[2] * B.place.v[2];
+      if (inside(B, [bx, by], IB)) return { a: A.name, b: B.name, at: P };
+    }
+  }
+  return null;
 }

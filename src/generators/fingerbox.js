@@ -68,6 +68,60 @@ export function plateRegion(P, plates, L, t, fw) {
   return rectRegion(keep, cut);
 }
 
+/** Outward port frames on each face: o = outer face centre, n = outward normal, u x v = n. */
+const PORT_AXES = {
+  top: { n: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0] },
+  bottom: { n: [0, 0, -1], u: [1, 0, 0], v: [0, -1, 0] },
+  front: { n: [0, -1, 0], u: [1, 0, 0], v: [0, 0, 1] },
+  back: { n: [0, 1, 0], u: [-1, 0, 0], v: [0, 0, 1] },
+  right: { n: [1, 0, 0], u: [0, 1, 0], v: [0, 0, 1] },
+  left: { n: [-1, 0, 0], u: [0, -1, 0], v: [0, 0, 1] },
+};
+
+/**
+ * A finger-jointed box as placed parts plus a port on every face, in box coordinates
+ * (corner at the origin, size L). Used by the box generator and by assemblies (hinges, robot).
+ * opts: {faces, finger, labels, prefix, title}
+ */
+export function buildBox(L, t, opts = {}) {
+  const faces = opts.faces || ['bottom', 'top', 'front', 'back', 'left', 'right'];
+  const fw = Math.max(opts.finger ?? 10, 1.5 * t);
+  const pre = opts.prefix || '';
+  const plates = boxPlates(L, t, faces);
+  const notes = [];
+  const parts = plates.map(P => {
+    const reg = plateRegion(P, plates, L, t, fw);
+    const outline = reg.outer.slice().sort((a, b) => area(b) - area(a))[0];
+    if (reg.outer.length > 1) notes.push(`${pre}${P.name} has ${reg.outer.length} separate islands; increase size or finger width.`);
+    const u = unit(P.u), v = unit(P.v), n = crossV(u, v);
+    const mid = (P.slab[0] + P.slab[1]) / 2;
+    const o = [0, 0, 0];
+    o[P.n] = mid;
+    const lu = L[P.u], lv = L[P.v];
+    const label = (opts.title ? opts.title + ' ' : '') + P.name;
+    const size = Math.min(6, lv / 6, lu / (textWidth(label, 1) + 1));
+    const nm = P.name[0].toUpperCase() + P.name.slice(1);
+    return {
+      id: pre + P.name,
+      name: opts.title ? `${opts.title} ${P.name}` : nm,
+      outline,
+      holes: reg.holes,
+      engrave: opts.labels && size >= 2 ? strokeText(label, lu / 2, lv / 2 - size / 2, size) : [],
+      place: { o, u, v, n },
+      meta: { axis: AX[P.n], face: P.name },
+    };
+  });
+  const ports = faces.map(f => {
+    const a = PORT_AXES[f], o = [L[0] / 2, L[1] / 2, L[2] / 2];
+    const k = a.n.findIndex(x => x !== 0);
+    o[k] = a.n[k] > 0 ? L[k] : 0;
+    const iu = a.u.findIndex(x => x !== 0), iv = a.v.findIndex(x => x !== 0);
+    // Room for a joint: the face's inside area (between the side walls).
+    return { name: f, part: pre + f, o, u: a.u.slice(), v: a.v.slice(), n: a.n.slice(), size: [L[iu] - 2 * t, L[iv] - 2 * t] };
+  });
+  return { parts, ports, notes, L };
+}
+
 export default {
   id: 'finger-box',
   title: 'Finger-jointed box',
@@ -89,36 +143,15 @@ export default {
     const closed = p.lid !== 'open';
     const add = p.dims === 'inner' ? [2 * t, 2 * t, closed ? 2 * t : t] : [0, 0, 0];
     const L = [p.width + add[0], p.depth + add[1], p.height + add[2]];
-    const fw = Math.max(p.finger, 1.5 * t);
     const faces = ['bottom', 'front', 'back', 'left', 'right'].concat(closed ? ['top'] : []);
-    const plates = boxPlates(L, t, faces);
-    const notes = [];
-    const parts = plates.map(P => {
-      const reg = plateRegion(P, plates, L, t, fw);
-      const outline = reg.outer.slice().sort((a, b) => area(b) - area(a))[0];
-      if (reg.outer.length > 1) notes.push(`${P.name} has ${reg.outer.length} separate islands; increase size or finger width.`);
-      const u = unit(P.u), v = unit(P.v), n = crossV(u, v);
-      const mid = (P.slab[0] + P.slab[1]) / 2;
-      const o = [0, 0, 0];
-      o[P.n] = mid;
-      const lu = L[P.u], lv = L[P.v];
-      const size = Math.min(6, lv / 6, lu / (textWidth(P.name, 1) + 1));
-      return {
-        id: P.name,
-        name: P.name[0].toUpperCase() + P.name.slice(1),
-        outline,
-        holes: reg.holes,
-        engrave: p.labels && size >= 2 ? strokeText(P.name, lu / 2, lv / 2 - size / 2, size) : [],
-        place: { o, u, v, n },
-        meta: { axis: AX[P.n] },
-      };
-    });
+    const box = buildBox(L, t, { faces, finger: p.finger, labels: p.labels });
     return makeDesign({
       title: `Finger box ${fmt(L[0])} x ${fmt(L[1])} x ${fmt(L[2])} mm`,
       generator: { id: 'finger-box', params: p },
       material,
-      parts,
-      notes,
+      parts: box.parts,
+      notes: box.notes,
+      ports: box.ports,
       view: { bounds: L },
     });
   },

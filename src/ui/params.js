@@ -1,4 +1,5 @@
 // Parameter panel built from a schema: [{key, label, type, default, min, max, step, choices, group, help, unit}]
+// type 'angle' is a slider plus a number box in degrees.
 // type 'length' shows in the chosen display unit (mm or inch) and is stored in mm.
 
 const IN = 25.4;
@@ -23,6 +24,7 @@ export function renderParams(el, schema, values, onChange, opts = {}) {
   const units = opts.units || 'mm';
   const groups = new Map();
   for (const p of schema) {
+    if (p.hidden) continue;
     const g = p.group || 'Settings';
     if (!groups.has(g)) groups.set(g, []);
     groups.get(g).push(p);
@@ -53,6 +55,7 @@ export function renderParams(el, schema, values, onChange, opts = {}) {
         inp.toggleAttribute('aria-invalid', bad);
         if (bad) return;
       }
+      if (p.type === 'angle') el.querySelectorAll(`[data-key="${p.key}"]`).forEach(o => { if (o !== inp) o.value = v; });
       onChange(p.key, v);
     });
   });
@@ -74,6 +77,10 @@ function row(p, v, units, i) {
   if (p.type === 'text') {
     if (p.multiline) return `<div class="row col">${label}<textarea id="${id}" rows="3" data-key="${esc(p.key)}">${esc(v)}</textarea></div>`;
     return `<div class="row">${label}<span class="num"><input id="${id}" type="text" data-key="${esc(p.key)}" value="${esc(v)}"></span></div>`;
+  }
+  if (p.type === 'angle') {
+    const a = `min="${p.min ?? -180}" max="${p.max ?? 180}" step="${p.step ?? 1}" data-key="${esc(p.key)}" value="${esc(v)}"`;
+    return `<div class="row col">${label}<span class="angle"><input type="range" ${a} aria-label="${esc(p.label)}"><span class="num"><input id="${id}" type="number" inputmode="decimal" ${a}><i>°</i></span></span></div>`;
   }
   const isLen = p.type === 'length';
   const shown = isLen ? fmtLen(v, units) : v;

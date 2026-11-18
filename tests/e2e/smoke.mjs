@@ -67,6 +67,22 @@ const halves = await page.evaluate(() => {
   return { l, r };
 });
 check(halves.l > 100 && halves.r > 100, 'stereo draws two pictures ' + JSON.stringify(halves));
+
+// maximize the preview (with stereo on), then restore with Esc
+const vsize = () => page.evaluate(() => { const r = document.getElementById('view').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; });
+const before = await vsize();
+await page.click('#maxBtn');
+await page.waitForTimeout(400);
+const maxed = await vsize();
+const vp = page.viewportSize();
+check(await page.evaluate(() => document.querySelector('.view').classList.contains('max')) && maxed[0] >= vp.width - 2 && maxed[1] >= vp.height - 2,
+  'maximize fills the window ' + JSON.stringify({ before, maxed }));
+check(await page.isVisible('#stereoSel') && await page.isVisible('#stereoSplit'), 'stereo controls stay on when maximized');
+await page.screenshot({ path: path.join(shots, 'stereo-maximized.png') });
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+const restored = await vsize();
+check(!(await page.evaluate(() => document.querySelector('.view').classList.contains('max'))) && restored[1] === before[1], 'Esc restores the preview ' + JSON.stringify(restored));
 await page.selectOption('#stereoSel', 'off');
 
 // export LBRN2
@@ -88,6 +104,57 @@ await page.waitForFunction(() => __lasersmith.design && __lasersmith.design.gene
 await page.waitForTimeout(300);
 await page.screenshot({ path: path.join(shots, 'coupon.png') });
 check(true, 'kerf coupon opens');
+
+// hinge coupon: cross hinge, posed with the slider, dowels in 3D
+await page.click('[data-id=hinge-coupon]');
+await page.waitForFunction(() => __lasersmith.design && __lasersmith.design.generator.id === 'hinge-coupon');
+st = await page.evaluate(() => ({ hw: __lasersmith.design.hardware.length, bad: __lasersmith.issues.filter(i => i.level !== 'info'), notes: [...document.querySelectorAll('#issues li.info')].length }));
+check(st.hw === 0 && st.bad.length === 0 && st.notes >= 1, 'cross hinge coupon: nubbed cross, no dowels, clean, range-of-motion note ' + JSON.stringify(st));
+await page.fill('input[type=number][data-key=pose1]', '30');
+await page.fill('input[type=number][data-key=pose2]', '-20');
+await page.waitForFunction(() => __lasersmith.design.joints[0].a1 === 30 && __lasersmith.design.joints[0].a2 === -20);
+check(await page.inputValue('input[type=range][data-key=pose1]') === '30', 'pose slider follows the number box');
+await page.waitForTimeout(400);
+await page.screenshot({ path: path.join(shots, 'hinge-cross.png') });
+await page.selectOption('[data-key=hinge]', 'pin');
+await page.waitForFunction(() => __lasersmith.design.joints[0].type === 'pin');
+await page.waitForTimeout(400);
+await page.screenshot({ path: path.join(shots, 'hinge-pin.png') });
+check(true, 'pin hinge renders');
+
+// articulated robot
+await page.click('[data-id=robot]');
+await page.waitForFunction(() => __lasersmith.design && __lasersmith.design.generator.id === 'robot', null, { timeout: 30000 });
+st = await page.evaluate(() => ({ joints: __lasersmith.design.joints.length, bad: __lasersmith.issues.filter(i => i.level !== 'info').length }));
+check(st.joints === 5 && st.bad === 0, 'robot: 5 joints, clean ' + JSON.stringify(st));
+await page.fill('input[type=number][data-key=shoulderL1]', '70');
+await page.waitForFunction(() => __lasersmith.design.joints[1].a1 === 70);
+await page.waitForTimeout(400);
+await page.screenshot({ path: path.join(shots, 'robot.png') });
+
+// voxel sculpture + editor
+await page.click('[data-id=voxel-sculpture]');
+await page.waitForFunction(() => __lasersmith.design && __lasersmith.design.generator.id === 'voxel-sculpture');
+st = await page.evaluate(() => ({ parts: __lasersmith.design.parts.length, bad: __lasersmith.issues.filter(i => i.level === 'error').length }));
+check(st.parts > 10 && st.bad === 0, 'voxel sculpture: cat sliced into interlocking pieces ' + JSON.stringify(st));
+await page.waitForTimeout(400);
+await page.screenshot({ path: path.join(shots, 'voxel.png') });
+check(await page.isVisible('#vxCanvas'), 'voxel editor shows');
+await page.click('#vxResize'); // same size: makes the figure editable as "My drawing"
+await page.waitForFunction(() => __lasersmith.design.generator.params.figure === 'custom');
+await page.click('#vxClear');
+for (const z of [0, 1, 2]) {
+  if (z) await page.click('#vxUp');
+  await page.click('#vxFill');
+}
+await page.waitForFunction(() => __lasersmith.design.parts.length > 0 && __lasersmith.design.title === 'My voxel figure sculpture');
+check(true, 'voxel editor drives the sculpture');
+const box = await page.locator('#vxCanvas').boundingBox();
+await page.click('#vxUp');
+await page.mouse.move(box.x + 5, box.y + box.height - 5); await page.mouse.down(); await page.mouse.move(box.x + 40, box.y + box.height - 5); await page.mouse.up();
+st = await page.evaluate(() => __lasersmith.state.params['voxel-sculpture'].grid);
+check(typeof st === 'string' && st.length > 5, 'painting with the mouse edits the grid');
+await page.click('#vxUndo');
 
 if (pyDir) {
   await page.click('[data-id=bx-flexbox]');
