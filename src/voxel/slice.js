@@ -62,6 +62,13 @@ export function sculpt(g, o) {
     const best = runs.reduce((a, b) => (b[1] - b[0] > a[1] - a[0] ? b : a));
     return { lo: runs[0][0] * V, hi: runs[runs.length - 1][1] * V, mid: ((best[0] + best[1]) / 2) * V, multi: runs.length > 1 };
   };
+  // Third family (optional): flat tiles in planes across W, one per cell of the A/B lattice, each
+  // hooked by tabs into slots in the A pieces on either side (PRD 9: the third family is split so it
+  // can still go together). extra[i] = slots for the A piece at layer i.
+  const extra = {}, tiles = [];
+  const tileInfo = [];
+  if (o.third && s < 2) notes.push('Flat tiles need a plane spacing of 2 or more: with spacing 1 there is no room between the pieces.');
+  else if (o.third) thirdFamily(g, { V, t, A, B, W, N, layers: [layers[A], layers[B], planeLayers(g, W, s)], extra, tiles, notes: tileInfo });
   for (const fam of [A, B]) {
     const other = fam === A ? B : A;
     const [P, Q] = [0, 1, 2].filter(k => k !== fam); // piece coordinates (p along axis P, q along axis Q)
@@ -82,6 +89,7 @@ export function sculpt(g, o) {
         const r = P === other ? [cb - t / 2, w0, cb + t / 2, w1] : [w0, cb - t / 2, w1, cb + t / 2];
         cut.push(r);
       }
+      if (fam === A && extra[i]) cut.push(...extra[i]);
       const reg = rectRegion(keep, cut);
       // Cleanup: drop slivers; an island must cross another piece (touch a slot) to be held in place.
       const minArea = 0.5 * V * V;
@@ -104,6 +112,22 @@ export function sculpt(g, o) {
       });
     });
   }
+  // Tiles become parts; assembly order: A pieces with the tiles between them, then B.
+  const order = [];
+  if (tiles.length) {
+    const aParts = parts.filter(q => q.meta.family === AX[A]);
+    const LA = layers[A];
+    const tilesIn = k => tiles.filter(q => q.interval === k).map(q => q.id);
+    LA.forEach((layer, w) => {
+      order.push(...aParts.filter(q => q.meta.layer === layer).map(q => q.id));
+      if (w === 0) order.push(...tilesIn(0));
+      order.push(...tilesIn(w + 1));
+    });
+    order.push(...parts.filter(q => q.meta.family === AX[B]).map(q => q.id));
+    for (const q of tiles) {
+      parts.push({ id: q.id, name: q.name, outline: q.outline, holes: [], engrave: o.labels ? label(q.name, q.outline, [], [], V, t, false) : [], place: q.place, meta: { family: AX[W], layer: q.layer } });
+    }
+  }
   const fA = AX[A], fB = AX[B], dir = ['left to right', 'front to back', 'bottom to top'];
   if (dropped) notes.push(`${dropped} sliver${dropped === 1 ? ' was' : 's were'} left out (too small or not held by any slot). Bigger voxels or a wider plane spacing keep more detail.`);
   const info = [
@@ -111,7 +135,80 @@ export function sculpt(g, o) {
     `Assembly: stand the ${fA} pieces in order, then slide each ${fB} piece onto them along ${AX[W]} (the ${fB} pieces' slots face the ${fA} pieces' slots). Every crossing is a half-lap.`,
   ];
   if (split.length) info.push(`${split.join(', ')} ${split.length === 1 ? 'is' : 'are'} cut as separate pieces (a, b, ...): that layer of the figure is not all one piece, or a slot passes through a thin part. Each slots onto the pieces it crosses.`);
-  return { parts, notes, info };
+  if (tiles.length) {
+    const glued = tiles.filter(q => q.tabs < 2).length;
+    info.push(...tileInfo);
+    info.push(`${tiles.length} ${AX[W]} tiles fill in the flat layers. Build along ${AX[A]}: stand ${fA}1, hook the tiles beside it into its slots, push the next ${fA} piece on so the tiles' other tabs go into its slots, and so on. Then slide the ${fB} pieces on as above.` + (glued ? ` ${glued} tile${glued === 1 ? ' has' : 's have'} a tab on one side only: glue ${glued === 1 ? 'it' : 'them'}.` : ''));
+  }
+  return { parts, notes, info, order };
+}
+
+/**
+ * Tiles of the third family. Layers: [A planes, B planes, W planes] (voxel layer indexes). Each W plane
+ * is cut into cells between the A and B planes; a cell's tile reaches t/2 short of each plane and has a
+ * tab into each A plane beside it (the tile on the low side uses the first half of the shared edge, the
+ * tile on the high side the second half, so the two tabs share one slot).
+ */
+function thirdFamily(g, { V, t, A, B, W, N, layers: [LA, LB, LW], extra, tiles, notes }) {
+  const m = Math.max(1, 0.6 * t) + 0.2;
+  const cellsOf = (L, n) => {
+    const out = [];
+    const cs = L.map(i => (i + 0.5) * V);
+    for (let k = 0; k <= cs.length; k++) out.push([k === 0 ? 0 : cs[k - 1] + t / 2, k === cs.length ? n * V : cs[k] - t / 2, k > 0 ? L[k - 1] : null, k < cs.length ? L[k] : null]);
+    return out;
+  };
+  const cellsA = cellsOf(LA, N[A]), cellsB = cellsOf(LB, N[B]);
+  const [P, Q] = [A, B].sort((a, b) => a - b); // tile coordinates
+  const rect = (rA, rB) => (P === A ? [rA[0], rB[0], rA[1], rB[1]] : [rB[0], rA[0], rB[1], rA[1]]);
+  const vox = (a, b, w) => { const c = [0, 0, 0]; c[A] = a; c[B] = b; c[W] = w; return at(g, c); };
+  let dropped = 0;
+  LW.forEach((k, num) => {
+    const w = (k + 0.5) * V;
+    let count = 0;
+    cellsA.forEach(([a0, a1, wallLo, wallHi], ia) => cellsB.forEach(([b0, b1]) => {
+      if (a1 - a0 < t || b1 - b0 < t) return;
+      const keep = [];
+      for (let a = Math.floor(a0 / V); a < Math.ceil(a1 / V); a++) for (let b = Math.floor(b0 / V); b < Math.ceil(b1 / V); b++) {
+        if (!vox(a, b, k)) continue;
+        const ra = [Math.max(a * V, a0), Math.min((a + 1) * V, a1)], rb = [Math.max(b * V, b0), Math.min((b + 1) * V, b1)];
+        if (ra[1] - ra[0] > 0.01 && rb[1] - rb[0] > 0.01) keep.push(rect(ra, rb));
+      }
+      if (!keep.length) return;
+      // Tabs into the A planes on either side.
+      const tabs = [];
+      for (const [wall, high] of [[wallLo, false], [wallHi, true]]) {
+        if (wall == null) continue;
+        let best = null, run = null;
+        for (let b = Math.floor(b0 / V); b <= Math.ceil(b1 / V); b++) {
+          if (b < Math.ceil(b1 / V) && vox(wall, b, k)) { if (!run) run = [b, b]; run[1] = b + 1; } else if (run) { if (!best || run[1] - run[0] > best[1] - best[0]) best = run; run = null; }
+        }
+        if (!best) continue;
+        const y0 = Math.max(best[0] * V, b0) + m, y1 = Math.min(best[1] * V, b1) - m;
+        const mid = (y0 + y1) / 2;
+        const [s0, s1] = high ? [y0, mid] : [mid, y1]; // high wall: this tile is on its low side, first half
+        if (s1 - s0 < 1.5 * t) continue;
+        const ac = (wall + 0.5) * V;
+        tabs.push({ wall, ra: [ac - t / 2, ac + t / 2], rb: [s0, s1] });
+      }
+      if (!tabs.length) { dropped++; return; }
+      for (const tb of tabs) keep.push(rect(tb.ra, tb.rb));
+      const reg = rectRegion(keep, []);
+      const outline = reg.outer.slice().sort((x, y) => Math.abs(area(y)) - Math.abs(area(x)))[0];
+      if (!outline || Math.abs(area(outline)) < 0.5 * V * V) { dropped++; return; }
+      for (const tb of tabs) {
+        // the slot in that A piece, in its own coordinates (axes B and W, in index order)
+        const [p2] = [B, W].sort((a, b) => a - b);
+        const sl = p2 === B ? [tb.rb[0], w - t / 2, tb.rb[1], w + t / 2] : [w - t / 2, tb.rb[0], w + t / 2, tb.rb[1]];
+        (extra[tb.wall] = extra[tb.wall] || []).push(sl);
+      }
+      count++;
+      const name = `${AX[W]}${num + 1}-${count}`;
+      const o3 = [0, 0, 0]; o3[W] = w;
+      const u = E[P], v = E[Q];
+      tiles.push({ id: 'vx-' + name.toLowerCase(), name, outline, place: { o: o3, u, v, n: crossV(u, v) }, interval: ia, layer: k, tabs: tabs.length });
+    }));
+  });
+  if (dropped) notes.push(`${dropped} small ${AX[W]} tile${dropped === 1 ? ' was' : 's were'} left out (too small, or no ${AX[A]} piece beside ${dropped === 1 ? 'it' : 'them'} to hold ${dropped === 1 ? 'it' : 'them'}).`);
 }
 
 /** A small engraved ID placed in the piece's solid wood, clear of slots. */

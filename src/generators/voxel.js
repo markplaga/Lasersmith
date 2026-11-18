@@ -27,12 +27,13 @@ export default {
     { key: 'voxel', label: 'Voxel size', type: 'length', default: 15, min: 5, max: 60, group: 'Figure', help: 'Size of one cube. The figure is this times the grid size.' },
     { key: 'families', label: 'Pieces run', type: 'select', default: 'xy', group: 'Pieces', choices: [{ value: 'xy', label: 'Side to side and front to back (stand up)' }, { value: 'xz', label: 'Side to side and flat layers' }, { value: 'yz', label: 'Front to back and flat layers' }] },
     { key: 'spacing', label: 'Plane spacing', type: 'int', default: 2, min: 1, max: 6, group: 'Pieces', help: 'A piece every N voxel layers. 1 = every layer: most detail, but pieces become combs; 2 or 3 is usually best.' },
+    { key: 'third', label: 'Add flat tiles (third direction)', type: 'bool', default: false, group: 'Pieces', help: 'Fills in the layers across the other two with small tiles that hook into slots, for a more solid look.' },
     { key: 'labels', label: 'Engrave piece numbers', type: 'bool', default: true, group: 'Pieces' },
   ],
   generate(p, material) {
     const g = gridFor(p);
     const t = material.thickness;
-    const r = sculpt(g, { voxel: p.voxel, families: FAM[p.families] || FAM.xy, spacing: p.spacing, t, labels: p.labels });
+    const r = sculpt(g, { voxel: p.voxel, families: FAM[p.families] || FAM.xy, spacing: p.spacing, t, labels: p.labels, third: p.third });
     const notes = [...r.notes];
     if (!count(g)) notes.push('The figure is empty: draw some voxels in the editor.');
     const name = p.figure === 'custom' ? 'My voxel figure' : (FIGURES[p.figure] || FIGURES.cat).label;
@@ -43,6 +44,7 @@ export default {
       parts: r.parts,
       notes,
       info: r.info,
+      order: r.order,
       view: { bounds: [g.nx * p.voxel, g.ny * p.voxel, g.nz * p.voxel] },
     });
   },
