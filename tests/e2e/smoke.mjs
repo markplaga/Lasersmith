@@ -134,7 +134,7 @@ check(true, 'pin hinge renders');
 await page.click('[data-id=robot]');
 await page.waitForFunction(() => __lasersmith.design && __lasersmith.design.generator.id === 'robot', null, { timeout: 30000 });
 st = await page.evaluate(() => ({ joints: __lasersmith.design.joints.length, bad: __lasersmith.issues.filter(i => i.level !== 'info').length }));
-check(st.joints === 5 && st.bad === 0, 'robot: 5 joints, clean ' + JSON.stringify(st));
+check(st.joints === 9 && st.bad === 0, 'robot: 9 joints (with elbows and knees), clean ' + JSON.stringify(st));
 await page.fill('input[type=number][data-key=shoulderL1]', '70');
 await page.waitForFunction(() => __lasersmith.design.joints[1].a1 === 70);
 await page.waitForTimeout(400);
