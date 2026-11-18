@@ -3,7 +3,7 @@
 Parametric laser-cut designs: pick something from the library, make it bespoke, and export files that
 cut right the first time in LightBurn. See [docs/PRD.md](docs/PRD.md) for the full plan.
 
-Done so far: **M1, local editor + export**, and **M2, hinges** (no accounts or Claude features yet).
+Done so far: **M1, local editor + export**, **M2, hinges**, and **M3, Claude mode** (no accounts yet).
 
 ## What works
 
@@ -37,6 +37,14 @@ Done so far: **M1, local editor + export**, and **M2, hinges** (no accounts or C
   motion is found by turning it in 3D until parts touch, and pose sliders show any pose (a pose past the
   range is a warning; the cut files are the same at any pose). Dowels are drawn in 3D and listed in the
   export README.
+- **Claude mode** (PRD sections 3, 4.2, 6.5): when Lasersmith runs inside Claude, a *Create with Claude* panel
+  turns a description (and optionally a sketch) into a **generator**: JavaScript written against the
+  Lasersmith geometry API, with its own parameters. The generator runs in a sandboxed Web Worker (no DOM,
+  network, storage or nested workers; 10 s limit), and its design is validated; errors go back to Claude
+  automatically for up to 3 repair rounds. Ask for changes to a Claude-made design in the same panel
+  ("make the legs thicker"), with undo. Your designs are kept in this browser and listed under *Your
+  designs*; download a design's `.generator.js` (also in the export zip) and open it on the standalone site
+  to edit its parameters and cut it without Claude. Without Claude the panel says it needs Claude.
 - **3D preview** (three.js): assembled view with explode slider for native designs, flat sheet view for all,
   and stereo (cross-eyed or parallel, with a depth slider) as in Boxsmith.
 
@@ -46,7 +54,7 @@ Done so far: **M1, local editor + export**, and **M2, hinges** (no accounts or C
 npm install
 npm run build        # dist/index.html + dist/boxespy.zip (site), dist/artifact.html (single file)
 npm test             # geometry, generators, export; boxes.py generators too if python3 has shapely
-npm run e2e          # browser smoke test (Playwright + Chromium)
+npm run e2e          # browser tests (Playwright + Chromium), incl. Claude mode with a stand-in
 npm run dev          # rebuild on change
 ```
 
@@ -60,6 +68,9 @@ Open `dist/index.html` through any static server (boxes.py designs fetch `boxesp
   a port, posing and the range-of-motion sweep. `src/geom/frame.js` has the 3D rigid-motion helpers.
 - `src/boxespy/` the boxes.py bridge: `bridge.py` (reads argparse schemas, renders parts as polylines),
   the worker, the main-thread client and the adapter into a Design document.
+- `src/claude/` Claude mode: `api.js` (the geometry API generators get), `genworker.js` (the sandbox worker),
+  `sandbox.js` (main-thread runner, time limit, line numbers), `prompt.js` (API reference and examples
+  Claude reads), `session.js` (ask, run, validate, repair loop). `src/mine.js` keeps your designs.
 - `src/export/` SVG, DXF, LBRN2 and zip writers.
 - `src/ui/` parameter panel and three.js preview; `src/main.js` wires it together.
 - `vendor/boxespy/` boxes.py plus its pure-Python dependencies (affine, qrcode, markdown), refreshed with

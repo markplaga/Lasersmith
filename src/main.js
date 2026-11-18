@@ -7,6 +7,9 @@ import { nest } from './geom/nest.js';
 import { sheetSVG, sheetDXF, sheetLBRN2, exportBundle, slug } from './export/formats.js';
 import { createBoxesClient } from './boxespy/client.js';
 import { boxesToDesign } from './boxespy/adapter.js';
+import { createSandbox } from './claude/sandbox.js';
+import { loadMine, saveMine, newEntry, generatorFile, codeFromFile } from './mine.js';
+import { mountClaudePanel } from './ui/claudepanel.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -47,6 +50,13 @@ const boxes = createBoxesClient({
   onProgress: msg => setStatus(msg + '…', true),
 });
 
+/* ---------- your designs (Claude-made or opened from a file) ---------- */
+let mine = loadMine();
+const entryOf = id => mine.find(e => e.id === id) || byId(id);
+const sandbox = createSandbox(document.getElementById('ls-genworker')?.textContent || '');
+const matNow = () => ({ name: S.material.name, thickness: +S.material.thickness, kerf: +S.material.kerf });
+const rules = () => ({ bedW: +S.machine.bedW, bedH: +S.machine.bedH, margin: +S.machine.margin });
+
 /* ---------- 3D ---------- */
 const preview = createPreview($('#view'));
 
@@ -54,7 +64,7 @@ const preview = createPreview($('#view'));
 function renderLibrary() {
   const q = S.q.trim().toLowerCase();
   const cats = new Map();
-  for (const e of LIBRARY) {
+  for (const e of [...mine, ...LIBRARY]) {
     const hay = (e.title + ' ' + e.category + ' ' + (e.tags || []).join(' ') + ' ' + (e.cls || '')).toLowerCase();
     if (q && !hay.includes(q)) continue;
     if (!cats.has(e.category)) cats.set(e.category, []);
@@ -64,11 +74,17 @@ function renderLibrary() {
   for (const [c, list] of cats) {
     html += `<li class="cat">${esc(c)}</li>`;
     for (const e of list) {
-      html += `<li><button class="lib-item${e.id === S.entry ? ' on' : ''}" data-id="${e.id}" aria-pressed="${e.id === S.entry}"><b>${esc(e.title)}</b><span class="src src-${e.source === 'native' ? 'native' : 'py'}">${e.source === 'native' ? 'Native 3D' : 'boxes.py'}</span></button></li>`;
+      html += `<li><button class="lib-item${e.id === S.entry ? ' on' : ''}" data-id="${e.id}" aria-pressed="${e.id === S.entry}"><b>${esc(e.title)}</b>${badge(e)}</button></li>`;
     }
   }
   $('#lib').innerHTML = html || '<li class="empty">Nothing matches.</li>';
   $('#lib').querySelectorAll('.lib-item').forEach(b => b.addEventListener('click', () => select(b.dataset.id)));
+}
+
+function badge(e) {
+  if (e.source === 'native') return '<span class="src src-native">Native 3D</span>';
+  if (e.source === 'claude') return `<span class="src src-mine">${e.origin === 'file' ? 'Opened' : 'Claude'}</span>`;
+  return '<span class="src src-py">boxes.py</span>';
 }
 
 async function select(id) {
@@ -76,11 +92,17 @@ async function select(id) {
   S.sheet = 0;
   save();
   renderLibrary();
-  const e = byId(id);
+  const e = entryOf(id);
   $('#dtitle').textContent = e.title;
   $('#ddesc').textContent = e.description || '';
-  $('#pyNote').hidden = e.source === 'native';
-  if (e.source === 'native') {
+  $('#pyNote').hidden = e.source !== 'boxes.py';
+  renderMineTools(e);
+  panel.refresh();
+  if (e.source === 'claude') {
+    schema = e.params || [];
+    mountParams();
+    regenerate(true);
+  } else if (e.source === 'native') {
     schema = e.gen.params;
     mountParams();
     regenerate(true);
@@ -126,12 +148,15 @@ function regenerate(now) {
 }
 async function run() {
   const my = ++gen;
-  const e = byId(S.entry);
+  const e = entryOf(S.entry);
   const params = currentParams();
-  const material = { name: S.material.name, thickness: +S.material.thickness, kerf: +S.material.kerf };
+  const material = matNow();
   try {
     let d;
-    if (e.source === 'native') d = e.gen.generate(params, material);
+    if (e.source === 'claude') {
+      setStatus('Running generator…', true);
+      d = (await sandbox.run(e.code, params, material)).design;
+    } else if (e.source === 'native') d = e.gen.generate(params, material);
     else {
       setStatus('Rendering with boxes.py…', true);
       // send only values that differ from boxes.py defaults
@@ -143,7 +168,7 @@ async function run() {
     }
     if (my !== gen) return;
     design = d;
-    issues = validate(design, { bedW: +S.machine.bedW, bedH: +S.machine.bedH, margin: +S.machine.margin });
+    issues = validate(design, rules());
     nested = nest(design, { sheetW: +S.machine.bedW, sheetH: +S.machine.bedH, margin: +S.machine.margin, gap: +S.machine.gap });
     if (S.sheet >= nested.sheets.length) S.sheet = 0;
     render();
@@ -247,7 +272,9 @@ document.querySelectorAll('[data-export]').forEach(b => b.addEventListener('clic
   if (kind === 'svg') saveFile(base + '.svg', sheetSVG(sh, design), 'image/svg+xml');
   if (kind === 'dxf') saveFile(base + '.dxf', sheetDXF(sh, design), 'application/dxf');
   if (kind === 'lbrn2') saveFile(base + '.lbrn2', sheetLBRN2(sh, design), 'application/xml');
-  if (kind === 'zip') saveFile(slug(design.title) + '.zip', new Blob([exportBundle(nested, design)], { type: 'application/zip' }));
+  const e = entryOf(S.entry);
+  const extra = e.source === 'claude' ? [{ name: slug(e.title) + '.generator.js', data: generatorFile(e) }] : [];
+  if (kind === 'zip') saveFile(slug(design.title) + '.zip', new Blob([exportBundle(nested, design, { extra })], { type: 'application/zip' }));
 }));
 
 /* ---------- material + machine ---------- */
@@ -312,13 +339,77 @@ $('#stereoDepthIn').addEventListener('input', e => { S.stereoDeg = +e.target.val
 $('#q').addEventListener('input', e => { S.q = e.target.value; renderLibrary(); });
 $('#reset').addEventListener('click', () => { delete S.params[S.entry]; save(); mountParams(); regenerate(true); });
 
-/* ---------- Claude mode detection (features arrive in M3) ---------- */
+/* ---------- your designs: tools, open from file ---------- */
+function renderMineTools(e) {
+  const el = $('#mineTools');
+  if (e.source !== 'claude') { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML = `<button class="btn ghost" data-mt="dl">Download generator</button>${e.versions && e.versions.length ? '<button class="btn ghost" data-mt="undo">Undo last change</button>' : ''}<button class="btn ghost" data-mt="del">Delete</button>`;
+  el.querySelector('[data-mt=dl]').addEventListener('click', () => saveFile(slug(e.title) + '.generator.js', generatorFile(e), 'text/javascript'));
+  const undo = el.querySelector('[data-mt=undo]');
+  if (undo) undo.addEventListener('click', () => {
+    const prev = e.versions.pop();
+    Object.assign(e, prev);
+    saveMine(mine); select(e.id); toast('Went back to the previous version');
+  });
+  const del = el.querySelector('[data-mt=del]');
+  del.addEventListener('click', () => {
+    if (!del.dataset.armed) { del.dataset.armed = '1'; del.textContent = 'Click again to delete'; setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = 'Delete'; } }, 4000); return; }
+    mine = mine.filter(x => x.id !== e.id); delete S.params[e.id];
+    saveMine(mine); select('finger-box'); toast('Deleted ' + e.title);
+  });
+}
+
+function addOrUpdate({ code, meta, chat, changing, origin = 'claude' }) {
+  let e;
+  if (changing) {
+    e = entryOf(S.entry);
+    e.versions = (e.versions || []).concat([{ code: e.code, params: e.params, title: e.title, description: e.description }]).slice(-10);
+    e.code = code;
+    if (meta) Object.assign(e, { params: meta.params, title: meta.title || e.title, description: meta.description || e.description });
+    if (chat) e.chat = chat;
+  } else {
+    e = newEntry({ code, meta: meta || { title: 'New design (needs fixing)', params: [] }, chat, origin });
+    mine.unshift(e);
+  }
+  if (!saveMine(mine)) toast('Could not save in this browser; download the generator to keep it');
+  select(e.id);
+  return e;
+}
+
+$('#openGen').addEventListener('change', async ev => {
+  const f = ev.target.files[0];
+  ev.target.value = '';
+  if (!f) return;
+  const code = codeFromFile(await f.text());
+  try {
+    const r = await sandbox.run(code, {}, matNow());
+    addOrUpdate({ code, meta: r.meta, chat: [], origin: 'file' });
+    toast('Opened ' + r.meta.title);
+  } catch (err) {
+    toast('That file is not a working Lasersmith generator: ' + err.message);
+  }
+});
+
+/* ---------- Claude mode (M3) ---------- */
+const panel = mountClaudePanel($('#claudeCard'), {
+  currentEntry: () => entryOf(S.entry),
+  currentParams,
+  material: matNow,
+  machine: () => ({ ...S.machine }),
+  run: (src, params) => sandbox.run(src, params, matNow()),
+  check: d => validate(d, rules()).filter(i => i.level === 'error').map(i => (i.part ? i.part + ': ' : '') + i.msg),
+  onResult: r => addOrUpdate({ code: r.source, meta: r.meta, chat: r.chat, changing: r.changing }),
+  toast,
+});
 (async () => {
   try {
     if (window.claude && window.claude.use) {
-      await window.claude.use('sample');
+      const s = await window.claude.use('sample');
+      if (!s) return;
       document.body.dataset.claude = 'on';
       $('#mode').textContent = 'Claude connected';
+      panel.enable(s);
     }
   } catch (e) { /* standalone */ }
 })();
@@ -329,8 +420,8 @@ $('#explode').value = S.explode;
 applyStereo();
 $('#q').value = S.q;
 mountMaterial();
-if (!byId(S.entry)) S.entry = 'finger-box';
+if (!entryOf(S.entry)) S.entry = 'finger-box';
 select(S.entry);
 
 // test hook
-window.__lasersmith = { get design() { return design; }, get issues() { return issues; }, get nested() { return nested; }, select, state: S };
+window.__lasersmith = { get design() { return design; }, get issues() { return issues; }, get nested() { return nested; }, get mine() { return mine; }, sandbox, select, state: S };

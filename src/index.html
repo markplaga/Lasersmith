@@ -45,6 +45,22 @@ body[data-claude=on] #mode{color:var(--ok);border-color:var(--ok)}
 .src{font:500 10px "IBM Plex Mono",monospace;border-radius:999px;padding:2px 7px;white-space:nowrap;flex:none}
 .src-native{background:var(--wood);color:var(--woodInk)}
 .src-py{border:1px solid var(--line);color:var(--mute)}
+.src-mine{border:1px solid var(--wood);color:var(--wood)}
+#mineTools{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+#mineTools .btn{padding:5px 10px;font-size:12px}
+.lib-open{display:block;margin-top:10px;text-align:center;font-size:12.5px;cursor:pointer}
+#claudeCard .cp-mode{margin-bottom:10px}
+#claudeCard .cp-mode button:disabled{opacity:.4;cursor:not-allowed}
+#cpLog{list-style:none;margin:0 0 10px;padding:0;display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto}
+#cpLog li{font-size:13px;line-height:1.4;padding:7px 10px;border-radius:10px;white-space:pre-wrap;max-width:92%}
+#cpLog li.user{align-self:flex-end;background:var(--wood);color:var(--woodInk)}
+#cpLog li.assistant{align-self:flex-start;background:var(--panel2)}
+#cpLog li.pending{color:var(--mute)}
+#cpAsk{width:100%;box-sizing:border-box;background:var(--field);border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;font-size:13.5px;color:var(--ink);resize:vertical}
+.cp-row{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.cp-row .grow{flex:1}
+.cp-img{padding:6px 10px;font-size:12px;cursor:pointer}
+#cpStatus{font-size:12.5px;margin:8px 0 0}
 .ddesc{color:var(--mute);font-size:13px;margin:-4px 0 10px;white-space:pre-line}
 .row{display:flex;gap:10px;align-items:center;margin:9px 0}
 .row.col{flex-direction:column;align-items:stretch}
@@ -135,13 +151,16 @@ footer a{color:inherit}
         <h2>Library</h2>
         <input class="search" id="q" type="search" placeholder="Search designs" aria-label="Search designs">
         <ul id="lib"></ul>
+        <label class="btn ghost lib-open" title="Open a .generator.js file made with Claude">Open generator file<input type="file" id="openGen" accept=".js,text/javascript" hidden></label>
       </section>
     </div>
 
     <div class="ctl-col">
+      <section class="card" id="claudeCard"></section>
       <section class="card">
         <h2><span id="dtitle">Design</span><button id="reset" title="Reset parameters to defaults">Reset</button></h2>
         <p class="ddesc" id="ddesc"></p>
+        <div id="mineTools" hidden></div>
         <p class="note" id="pyNote" hidden>Runs the original boxes.py generator in your browser (Pyodide). Thickness and kerf come from your material below; boxes.py applies the kerf itself.</p>
         <div id="params"></div>
       </section>
@@ -199,6 +218,7 @@ footer a{color:inherit}
 <div id="toast" hidden role="status"></div>
 <!--CONFIG-->
 <!--WORKER-->
+<!--GENWORKER-->
 <!--BOXESZIP-->
 <script>/*APP*/</script>
 </body>

@@ -128,7 +128,7 @@ export function makeZip(files) {
 }
 
 /** All sheets in every format plus a README, as one zip. */
-export function exportBundle(nested, design, { formats = ['svg', 'dxf', 'lbrn2'] } = {}) {
+export function exportBundle(nested, design, { formats = ['svg', 'dxf', 'lbrn2'], extra = [] } = {}) {
   const base = slug(design.title);
   const files = [];
   nested.sheets.forEach((s, i) => {
@@ -137,7 +137,7 @@ export function exportBundle(nested, design, { formats = ['svg', 'dxf', 'lbrn2']
     if (formats.includes('dxf')) files.push({ name: `${base}${n}.dxf`, data: sheetDXF(s, design) });
     if (formats.includes('lbrn2')) files.push({ name: `${base}${n}.lbrn2`, data: sheetLBRN2(s, design) });
   });
-  files.push({ name: 'README.txt', data: readme(nested, design) });
+  files.push({ name: 'README.txt', data: readme(nested, design) }, ...extra);
   files.push({ name: `${base}.lasersmith.json`, data: JSON.stringify({ format: design.format, version: design.version, title: design.title, generator: design.generator, material: design.material }, null, 2) });
   return makeZip(files);
 }
