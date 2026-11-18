@@ -70,7 +70,9 @@ export async function build() {
     .replace('<!--GENWORKER-->', () => `<script type="text/plain" id="ls-genworker">${inlineScript(genWorker)}</script>`)
     .replace('<!--BOXESZIP-->', () => zipTag)
     .replace('/*APP*/', () => inlineScript(app));
-  const site = page({ boxesZip: 'boxespy.zip', build: 'site' }, '');
+  // Accounts (M4): the Supabase project URL and anon (public) key, from the environment at build time.
+  const cloud = process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY ? { supabaseUrl: process.env.SUPABASE_URL, supabaseKey: process.env.SUPABASE_ANON_KEY } : {};
+  const site = page({ boxesZip: 'boxespy.zip', build: 'site', ...cloud }, '');
   const artifact = page({ build: 'artifact' }, `<script type="application/octet-stream" id="ls-boxes-zip">${zip.toString('base64')}</script>`);
   fs.writeFileSync(path.join(DIST, 'index.html'), site);
   fs.writeFileSync(path.join(DIST, 'boxespy.zip'), zip);

@@ -149,6 +149,7 @@ Decided (Q4):
 
 - **Hosting:** Netlify (already connected) for the static site, with **Netlify Functions in TypeScript** for the small API (save, publish, fork, search, Claude proxy for the site's own Claude connection if added later).
 - **Data, auth, storage:** Supabase (Postgres + auth + file storage). Postgres holds users, designs, versions, variants and tags; storage holds thumbnails and exported zips. Row-level security enforces private / unlisted / public.
+- **As built (M4):** the browser talks to Supabase's REST API directly with the public anon key, and row-level security (supabase/migrations) enforces private / unlisted / public and ownership. Netlify Functions are kept for anything RLS cannot express (none needed so far). Setup steps: docs/accounts.md.
 - **No backend needed for Claude mode itself**: in the artifact, Claude calls go through `window.claude`. The artifact talks to the same API to read the library and to save, when the user signs in.
 
 ### 6.5 Claude integration
@@ -282,7 +283,7 @@ Added by Mark (2026-11-18), matching Boxsmith. The 3D preview has a view menu wi
 
 M1 is the first milestone (Q5). M2 before M3 is deliberate: Claude needs the joint and port vocabulary to build an articulated robot well.
 
-**Status (2026-11-18).** M1, M2, M3 and M5 are built. Also done: the **Assembly** design (4.3: boxes hung off each other's faces by cross hinge, pin hinge, swivel or glue, in chains that pose as a whole, faces picked by clicking in 3D), robot **elbows and knees**, the **assemble animation** and an **assembly guide** (assembly-guide.html in the export zip), the voxel **third family** (flat tiles that hook into slots), and a **maximize** button on the 3D preview. Assemblies currently combine boxes; joining arbitrary library designs needs those designs to declare ports. M4 waits on the Supabase project.
+**Status (2026-11-18).** M1, M2, M3 and M5 are built. Also done: the **Assembly** design (4.3: boxes hung off each other's faces by cross hinge, pin hinge, swivel or glue, in chains that pose as a whole, faces picked by clicking in 3D), robot **elbows and knees**, the **assemble animation** and an **assembly guide** (assembly-guide.html in the export zip), the voxel **third family** (flat tiles that hook into slots), and a **maximize** button on the 3D preview. Assemblies currently combine boxes; joining arbitrary library designs needs those designs to declare ports. Nesting has stock sheet sizes and a grain lock. M4 (accounts, save, share, fork, community library, data export) is built and tested against an in-memory store and a local Postgres; it switches on when the site is built with the Supabase project's URL and anon key (docs/accounts.md).
 
 ## 15. Decisions (confirmed by Mark, 2026-11-17)
 

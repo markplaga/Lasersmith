@@ -19,3 +19,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+      - name: Database rules (row-level security) on the runner's Postgres
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres env PGHOST=/var/run/postgresql sh supabase/tests/run.sh

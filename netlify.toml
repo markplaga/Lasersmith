@@ -3,6 +3,8 @@
   command = "npm ci && npm run build"
   publish = "dist"
 
+# Accounts: set SUPABASE_URL and SUPABASE_ANON_KEY in Netlify's environment variables (see docs/accounts.md).
+
 [[headers]]
   for = "/boxespy.zip"
   [headers.values]
