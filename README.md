@@ -3,7 +3,7 @@
 Parametric laser-cut designs: pick something from the library, make it bespoke, and export files that
 cut right the first time in LightBurn. See [docs/PRD.md](docs/PRD.md) for the full plan.
 
-Done so far: **M1, local editor + export**, **M2, hinges**, and **M3, Claude mode** (no accounts yet).
+Done so far: **M1, local editor + export**, **M2, hinges**, and **M3, Claude mode** and **M5, voxel sculptures** (M4 accounts not yet).
 
 ## What works
 
@@ -45,6 +45,12 @@ Done so far: **M1, local editor + export**, **M2, hinges**, and **M3, Claude mod
   ("make the legs thicker"), with undo. Your designs are kept in this browser and listed under *Your
   designs*; download a design's `.generator.js` (also in the export zip) and open it on the standalone site
   to edit its parameters and cut it without Claude. Without Claude the panel says it needs Claude.
+- **Voxel sculptures** (PRD section 9): *Voxel sculpture* in the library slices a figure (rocket, cat,
+  heart, pine tree, or your own) into two families of flat pieces at right angles, with half-lap slots
+  wherever they cross, engraved piece numbers and assembly notes. Choose the voxel size, which way the
+  pieces run and the plane spacing. Slivers too small to hold are left out. The *Voxel editor* paints
+  cubes one layer at a time (mirror, fill, copy layer, undo, resize up to 64³). Claude can build figures
+  from a description through `api.voxels`. Not yet: a third plane family, mesh import.
 - **3D preview** (three.js): assembled view with explode slider for native designs, flat sheet view for all,
   and stereo (cross-eyed or parallel, with a depth slider) as in Boxsmith.
 
@@ -71,6 +77,7 @@ Open `dist/index.html` through any static server (boxes.py designs fetch `boxesp
 - `src/claude/` Claude mode: `api.js` (the geometry API generators get), `genworker.js` (the sandbox worker),
   `sandbox.js` (main-thread runner, time limit, line numbers), `prompt.js` (API reference and examples
   Claude reads), `session.js` (ask, run, validate, repair loop). `src/mine.js` keeps your designs.
+- `src/voxel/` voxel grids and figures (`grid.js`) and the slicer (`slice.js`); `src/ui/voxeleditor.js`.
 - `src/export/` SVG, DXF, LBRN2 and zip writers.
 - `src/ui/` parameter panel and three.js preview; `src/main.js` wires it together.
 - `vendor/boxespy/` boxes.py plus its pure-Python dependencies (affine, qrcode, markdown), refreshed with

@@ -24,6 +24,7 @@ export function renderParams(el, schema, values, onChange, opts = {}) {
   const units = opts.units || 'mm';
   const groups = new Map();
   for (const p of schema) {
+    if (p.hidden) continue;
     const g = p.group || 'Settings';
     if (!groups.has(g)) groups.set(g, []);
     groups.get(g).push(p);

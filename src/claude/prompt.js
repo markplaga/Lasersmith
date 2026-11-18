@@ -62,6 +62,15 @@ Joints (moving parts between boxes):
       (slow-ish: once per joint); fmtRange(r) -> text.
       Pass joints and hardware to makeDesign so the 3D view shows dowels.
 
+Voxel sculptures (figures made of flat pieces at right angles that slot together):
+      voxels.makeGrid(nx, ny, nz); voxels.set(g, x, y, z, 1); voxels.get(g, x, y, z);
+      voxels.fromFunction(nx, ny, nz, (x, y, z) => bool) (cell centres, e.g. ellipsoids for body parts);
+      voxels.sculpt(g, {voxel: mm, families: [0, 1] (axes of the two piece families: 0 x, 1 y, 2 z),
+      spacing: 1, t, labels: true}) -> {parts, notes, info}: half-lapped pieces, already placed in 3D.
+      Grids up to ~40 cells a side; figure size = cells x voxel. Keep features at least 2 cells thick.
+      For a described figure ("a sitting cat") build it from simple solids with fromFunction and expose
+      size, voxel, families and spacing as params.
+
 RULES THE APP CHECKS (errors block export)
 - Outlines closed and not self-intersecting; holes inside their outline.
 - Parts fit the bed (with margin); wood between cuts at least 0.6 x t (min 1 mm).

@@ -116,6 +116,30 @@ await page.waitForFunction(() => __lasersmith.design.joints[1].a1 === 70);
 await page.waitForTimeout(400);
 await page.screenshot({ path: path.join(shots, 'robot.png') });
 
+// voxel sculpture + editor
+await page.click('[data-id=voxel-sculpture]');
+await page.waitForFunction(() => __lasersmith.design && __lasersmith.design.generator.id === 'voxel-sculpture');
+st = await page.evaluate(() => ({ parts: __lasersmith.design.parts.length, bad: __lasersmith.issues.filter(i => i.level === 'error').length }));
+check(st.parts > 10 && st.bad === 0, 'voxel sculpture: cat sliced into interlocking pieces ' + JSON.stringify(st));
+await page.waitForTimeout(400);
+await page.screenshot({ path: path.join(shots, 'voxel.png') });
+check(await page.isVisible('#vxCanvas'), 'voxel editor shows');
+await page.click('#vxResize'); // same size: makes the figure editable as "My drawing"
+await page.waitForFunction(() => __lasersmith.design.generator.params.figure === 'custom');
+await page.click('#vxClear');
+for (const z of [0, 1, 2]) {
+  if (z) await page.click('#vxUp');
+  await page.click('#vxFill');
+}
+await page.waitForFunction(() => __lasersmith.design.parts.length > 0 && __lasersmith.design.title === 'My voxel figure sculpture');
+check(true, 'voxel editor drives the sculpture');
+const box = await page.locator('#vxCanvas').boundingBox();
+await page.click('#vxUp');
+await page.mouse.move(box.x + 5, box.y + box.height - 5); await page.mouse.down(); await page.mouse.move(box.x + 40, box.y + box.height - 5); await page.mouse.up();
+st = await page.evaluate(() => __lasersmith.state.params['voxel-sculpture'].grid);
+check(typeof st === 'string' && st.length > 5, 'painting with the mouse edits the grid');
+await page.click('#vxUndo');
+
 if (pyDir) {
   await page.click('[data-id=bx-flexbox]');
   await page.waitForFunction(() => __lasersmith.design && __lasersmith.design.generator.id === 'bx-flexbox', null, { timeout: 120000 });

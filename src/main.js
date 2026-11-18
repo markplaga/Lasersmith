@@ -10,6 +10,8 @@ import { boxesToDesign } from './boxespy/adapter.js';
 import { createSandbox } from './claude/sandbox.js';
 import { loadMine, saveMine, newEntry, generatorFile, codeFromFile } from './mine.js';
 import { mountClaudePanel } from './ui/claudepanel.js';
+import { mountVoxelEditor } from './ui/voxeleditor.js';
+import { gridFor } from './generators/voxel.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -98,6 +100,7 @@ async function select(id) {
   $('#pyNote').hidden = e.source !== 'boxes.py';
   renderMineTools(e);
   panel.refresh();
+  $('#voxelCard').hidden = id !== 'voxel-sculpture';
   if (e.source === 'claude') {
     schema = e.params || [];
     mountParams();
@@ -105,6 +108,7 @@ async function select(id) {
   } else if (e.source === 'native') {
     schema = e.gen.params;
     mountParams();
+    if (id === 'voxel-sculpture') voxEd.load();
     regenerate(true);
   } else {
     schema = [];
@@ -389,6 +393,15 @@ $('#openGen').addEventListener('change', async ev => {
   } catch (err) {
     toast('That file is not a working Lasersmith generator: ' + err.message);
   }
+});
+
+/* ---------- voxel editor (M5) ---------- */
+const voxEd = mountVoxelEditor($('#voxelCard'), {
+  getGrid: () => gridFor(currentParams()),
+  onChange: grid => {
+    S.params[S.entry] = { ...(S.params[S.entry] || {}), grid, figure: 'custom' };
+    save(); mountParams(); regenerate();
+  },
 });
 
 /* ---------- Claude mode (M3) ---------- */

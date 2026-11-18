@@ -7,6 +7,8 @@ import { makeDesign, makePart, toWorld } from '../geom/design.js';
 import { strokeText, textWidth } from '../geom/strokefont.js';
 import { buildBox, fingerSegments } from '../generators/fingerbox.js';
 import { v3, rotAxis, movePlace, frameToFrame, toLocal, rotateAbout, applyRigid, mul as mulR } from '../geom/frame.js';
+import * as vox from '../voxel/grid.js';
+import { sculpt } from '../voxel/slice.js';
 import { addHinge, portAt, posed, rangeOfMotion, fmtRange, HINGE_PARAMS } from '../joints/hinge.js';
 
 export const API = Object.freeze({
@@ -24,6 +26,8 @@ export const API = Object.freeze({
   v3, rotAxis, movePlace, frameToFrame, toLocal, rotateAbout, applyRigid, mulR,
   // joints
   addHinge, portAt, posed, rangeOfMotion, fmtRange, HINGE_PARAMS,
+  // voxel sculptures
+  voxels: Object.freeze({ makeGrid: vox.makeGrid, get: vox.get, set: vox.set, fromFunction: vox.fromFunction, count: vox.count, encode: vox.encode, sculpt }),
 });
 
 /**
