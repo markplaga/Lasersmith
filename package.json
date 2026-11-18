@@ -1,0 +1,20 @@
+{
+  "name": "lasersmith",
+  "version": "0.1.0",
+  "description": "Parametric laser-cut design editor: library designs, bespoke parameters, LightBurn-ready SVG/DXF/LBRN2 export.",
+  "license": "GPL-3.0-or-later",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node tests/run.js",
+    "dev": "node build.js --watch",
+    "e2e": "node build.js && node tests/e2e/smoke.mjs"
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.2"
+  }
+}

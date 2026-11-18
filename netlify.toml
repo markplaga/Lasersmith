@@ -1,0 +1,9 @@
+# Static site: npm run build writes dist/ (index.html, boxespy.zip, artifact.html).
+[build]
+  command = "npm ci && npm run build"
+  publish = "dist"
+
+[[headers]]
+  for = "/boxespy.zip"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
