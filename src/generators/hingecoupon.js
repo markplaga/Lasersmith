@@ -1,4 +1,4 @@
-// Hinge test coupon (PRD 7.3): two small finger-jointed boxes joined by one hinge, so the dowel fit
+// Hinge test coupon (PRD 7.3): two small finger-jointed boxes joined by one hinge, so the fit
 // and the range of motion can be checked before cutting a whole robot.
 
 import { buildBox } from './fingerbox.js';
@@ -12,12 +12,26 @@ export const POSE_PARAMS = [
 
 const romCache = new Map();
 
+function assemblyNotes(type, hw, p, t) {
+  if (type === 'cross') return [
+    `The cross's nubs turn in ${(Math.SQRT2 * t + p.pinClear).toFixed(1)} mm holes in the arms. No dowels needed.`,
+    'Assembly: slip all four arms onto the cross\'s nubs first, then push the arm tabs into the slots in the two box faces and glue them before closing the boxes.',
+  ];
+  const n = hw.length;
+  return [
+    `Dowels: ${n} ${n === 1 ? 'piece' : 'pieces'} of ${p.pinD} mm dowel, ${hw[0].len.toFixed(1)} mm long. ` + (type === 'swivel'
+      ? "Glue it into the keeper disc and the lower box's face; it turns in the upper face and the washer."
+      : 'Glue or press it into the outer arms; it turns in the middle arm.'),
+    type === 'swivel' ? 'Fit the keeper disc inside the upper box before closing it.' : 'Arm tabs go through the slots in the box faces; glue them before closing the boxes.',
+  ];
+}
+
 export default {
   id: 'hinge-coupon',
   title: 'Hinge test coupon',
   category: 'Hinges',
   source: 'native',
-  description: 'Two small boxes joined by a cross hinge (two axes), a pin hinge or a swivel, with dowel pins. Cut this first to check the fit before a bigger build; the range of motion is worked out in 3D.',
+  description: 'Two small boxes joined by a cross hinge (a flat cross with nubs, two axes), a pin hinge or a swivel (both on dowels). Cut this first to check the fit before a bigger build; the range of motion is worked out in 3D.',
   tags: ['hinge', 'cross hinge', 'universal joint', 'dowel', 'test'],
   params: [
     { key: 'box', label: 'Box size', type: 'length', default: 60, min: 40, max: 300, group: 'Boxes', help: 'Each box is a cube this size.' },
@@ -41,10 +55,7 @@ export default {
     const pose = posed(J.parts, J.hardware, [joint]);
     const info = [
       J.joint.type === 'swivel' ? `Range of motion: ${fmtRange(range.a1)}.` : `Range of motion, axis 1: ${fmtRange(range.a1)}` + (range.a2 ? `; axis 2: ${fmtRange(range.a2)}.` : '.'),
-      `Dowels: ${J.hardware.length} ${J.hardware.length === 1 ? 'piece' : 'pieces'} of ${p.pinD} mm dowel, ${J.hardware[0].len.toFixed(1)} mm long. ` + (J.joint.type === 'swivel'
-        ? 'Glue it into the keeper disc and the lower box\'s face; it turns in the upper face and the washer.'
-        : `Glue or press them into the arms; they turn in the ${J.joint.type === 'cross' ? 'cross block' : 'middle arm'}.`),
-      J.joint.type === 'swivel' ? 'Fit the keeper disc inside the upper box before closing it.' : 'Arm tabs go through the slots in the box faces; glue them before closing the boxes.',
+      ...assemblyNotes(J.joint.type, J.hardware, p, t),
     ];
     return makeDesign({
       title: { cross: 'Cross hinge coupon', pin: 'Pin hinge coupon', swivel: 'Swivel coupon' }[J.joint.type],

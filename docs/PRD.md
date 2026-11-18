@@ -180,7 +180,7 @@ A port is a named mounting point on a part face: a position, an outward normal, 
             │  Box A   │
             └┬────────┬┘
        arm A ║        ║ arm A        (Box A's arms, from two opposite faces)
-             o───┼────o              cross: nubs in A's arm holes
+             o───┼────o              cross: flat square, nubs in A's arm holes
                  │
                  o  ← other two nubs (perpendicular axis)
           arm B ║  ║ arm B           (Box B's arms take these nubs)
@@ -190,11 +190,11 @@ A port is a named mounting point on a part face: a position, an outward normal, 
 ```
 
 - **Box A** (a six-sided box) has two **arms**, flat tabs with a hole near the tip, one coming out of each of two opposite faces and extending the same way past the box, so they form a fork (a clevis).
-- The **cross** is two flat bars joined with a half-lap slot into a "+". Its four ends are **nubs**. One opposite pair goes into Box A's arm holes.
+- The **cross** is one flat square piece with a **nub** sticking out of the middle of each edge (Mark, 2026-11-18). One opposite pair of nubs goes into Box A's arm holes.
 - **Box B** has its own pair of arms that take the cross's other two nubs.
 - Result: Box B can tilt about two perpendicular axes relative to Box A, like a universal joint.
 
-Parameters: arm length, arm width, arm gap (fits the cross), hole diameter, cross bar width, cross size, clearance, pin type (Q2, decided), and range-of-motion limits.
+Parameters: arm length (reach), arm width, arm gap (fits the cross), cross size, turning clearance, and range-of-motion limits.
 
 Lasersmith must:
 
@@ -203,7 +203,7 @@ Lasersmith must:
 - compute and show the range of motion in 3D, and flag where the boxes collide before the joint's limit;
 - size holes from material, kerf and the chosen pin type, and offer a **hinge test coupon** (one joint, small) so the fit can be checked before cutting a whole robot.
 
-Design risk: a flat-cut nub has a rectangular cross-section, so it does not rotate smoothly in a round hole. The default (Q2, decided) is to use the nubs as **bosses drilled for a dowel pin**, i.e. the pin is round wood dowel and the nubs and arms both have round holes.
+Nub fit (decided 2026-11-18): each nub is t x t, so it turns in a round arm hole of the nub's diagonal (t·√2) plus a turning clearance. The cross hinge needs no dowels. Assembly: slip the four arms onto the nubs, then push the arm tabs through the slots in the two box faces and glue. Dowel pins (Q2) remain for the pin hinge and the swivel.
 
 ## 8. Validation (applies to every design, including Claude's)
 

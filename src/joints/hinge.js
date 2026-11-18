@@ -4,16 +4,14 @@
 //   origin = pivot, ez points from the pivot towards body A, ex = axis 1, ey = axis 2.
 //   Body A's face is the plane z = +R, body B's face the plane z = -R.
 //
-//   Cross hinge: a small open cube (4 finger-jointed walls) sits at the pivot. A's two arms (plates with
-//   normal ex) hang down either side of the cube; a dowel pin through each arm and the cube's x-wall
-//   gives axis 1. B's two arms (normal ey) come up the other two sides; pins give axis 2.
+//   Cross hinge (Mark's design): a flat square cross piece lies at the pivot with a nub out of the middle of
+//   each edge. A's two arms (plates with normal ex) take the ±ex nubs in round holes (axis 1); B's two
+//   arms (normal ey) take the ±ey nubs (axis 2). No dowels.
 //   Pin hinge: A's two arms straddle one arm of B; one pin through all three gives a single axis.
 //
-// Pins are snug in the arm (nominal hole: glue or press them) and loose in the part that turns
-// (hole + clearance). Arms end in a tab that passes through a slot in the body's face plate.
+// Pin hinge and swivel use dowels: snug where glued (nominal hole), loose where they turn (+ clearance). Arms end in a tab that passes through a slot in the body's face plate.
 
 import { v3, rotAxis, mulM, mul, rotateAbout, movePlace, applyRigid, frameToFrame, toLocal } from '../geom/frame.js';
-import { buildBox } from '../generators/fingerbox.js';
 import { collisionsBetween } from '../geom/validate.js';
 import { bbox, pointInLoop, circleLoop } from '../geom/poly.js';
 import { makePart } from '../geom/design.js';
@@ -22,9 +20,9 @@ const DEG = Math.PI / 180;
 
 export const HINGE_PARAMS = [
   { key: 'hinge', label: 'Hinge', type: 'select', default: 'cross', group: 'Hinge', choices: [{ value: 'cross', label: 'Cross hinge (2 axes)' }, { value: 'pin', label: 'Pin hinge (1 axis)' }, { value: 'swivel', label: 'Swivel (turns)' }] },
-  { key: 'pinD', label: 'Dowel diameter', type: 'length', default: 6, min: 2, max: 20, group: 'Hinge', help: 'Round wood dowel. Arm holes are cut at this size (snug); the turning part gets the clearance below.' },
-  { key: 'pinClear', label: 'Turning clearance', type: 'length', default: 0.3, min: 0, max: 2, step: 0.05, group: 'Hinge', help: 'Added to the hole the dowel turns in.' },
-  { key: 'cube', label: 'Cross block size', type: 'length', default: 24, min: 12, max: 120, group: 'Hinge', help: 'Outside size of the small cube at the centre of a cross hinge.' },
+  { key: 'pinD', label: 'Dowel diameter', type: 'length', default: 6, min: 2, max: 20, group: 'Hinge', help: 'Pin hinge and swivel: round wood dowel. Holes it is glued in are cut at this size; the turning part gets the clearance below.' },
+  { key: 'pinClear', label: 'Turning clearance', type: 'length', default: 0.3, min: 0, max: 2, step: 0.05, group: 'Hinge', help: 'Added to every hole something turns in (dowel, or the cross nubs).' },
+  { key: 'cube', label: 'Cross size', type: 'length', default: 24, min: 10, max: 120, group: 'Hinge', help: 'Cross hinge: the square in the middle of the cross piece (nubs stick out from each edge).' },
   { key: 'armW', label: 'Arm width', type: 'length', default: 20, min: 8, max: 120, group: 'Hinge' },
   { key: 'gap', label: 'Arm gap', type: 'length', default: 1, min: 0.2, max: 5, step: 0.1, group: 'Hinge', help: 'Air gap between an arm and the part it turns against.' },
   { key: 'disc', label: 'Swivel disc diameter', type: 'length', default: 30, min: 12, max: 200, group: 'Hinge', help: 'Swivel only: the washer between the two faces and the keeper disc inside the fixed box.' },
@@ -56,26 +54,20 @@ export function hingeParts(h, t) {
   const parts = [], pins = [], faceHoles = [];
   let R;
   if (type === 'cross') {
-    if (w > s + 2 * g - 0.5) notes.push(`Arm width ${w} mm is too wide for a ${s} mm cross block: the two pairs of arms would rub. Use at most ${(s + 2 * g - 0.5).toFixed(1)} mm.`);
-    if (s / 2 - t - 1 <= dL / 2 + 0.5) notes.push(`The cross block is too small for ${dS} mm dowels.`);
-    const xa = s / 2 + g + t / 2;
-    R = Math.max((s / 2) * Math.SQRT2, Math.hypot(xa + t / 2, w / 2)) + 1.5 + (h.reach || 0);
-    // Cross block: a 4-walled tube s x s x s centred on the pivot, loose holes in every wall.
-    const cube = buildBox([s, s, s], t, { faces: ['front', 'back', 'left', 'right'], finger: s / 3 + 0.01, prefix: 'xb-' });
-    for (const p of cube.parts) {
-      p.place = movePlace(p.place, { R: [EX, EY, EZ], T: [-s / 2, -s / 2, -s / 2] });
-      p.circles = [{ cx: s / 2, cy: s / 2, r: dL / 2 }];
-      p.name = 'Cross block ' + p.meta.face;
-      p.body = 'X';
-      parts.push(p);
-    }
+    // Mark's cross: one flat square plate (in the ex-ey plane) with a square nub out of the middle of each
+    // edge. The ±ex nubs turn in round holes in A's arms (axis 1), the ±ey nubs in B's arms (axis 2).
+    // A nub is t x t, so the arm hole is the nub's diagonal plus the turning clearance.
+    const nub = t, dN = Math.SQRT2 * nub + h.pinClear;
+    if (w > s + 2 * g - 0.5) notes.push(`Arm width ${w} mm is too wide for a ${s} mm cross: the two pairs of arms would rub. Use at most ${(s + 2 * g - 0.5).toFixed(1)} mm.`);
+    if (w < dN + 2 * Math.max(1, 0.6 * t)) notes.push(`Arms ${w} mm wide leave too little wood around the ${dN.toFixed(1)} mm nub holes.`);
+    const xa = s / 2 + g + t / 2, e = s / 2 + g + t + 1; // arm centre plane, nub tip (1 mm proud of the arm)
+    R = Math.max(Math.hypot(e, t / 2), Math.hypot(xa + t / 2, w / 2)) + 1.5 + (h.reach || 0);
+    const A = s / 2, B = nub / 2;
+    const outline = [[-A, -A], [-B, -A], [-B, -e], [B, -e], [B, -A], [A, -A], [A, -B], [e, -B], [e, B], [A, B], [A, A], [B, A], [B, e], [-B, e], [-B, A], [-A, A], [-A, B], [-e, B], [-e, -B], [-A, -B]];
+    parts.push({ id: 'cross', name: 'Cross', body: 'X', outline, place: { o: [0, 0, 0], u: EX, v: EY, n: EZ } });
     for (const sg of [-1, 1]) {
-      parts.push({ id: 'armA' + (sg > 0 ? 'R' : 'L'), name: `Arm A ${sg > 0 ? 'right' : 'left'}`, body: 'A', outline: armOutline(w, R, t, tabW), circles: [{ cx: 0, cy: 0, r: dS / 2 }], place: { o: [sg * xa, 0, 0], u: EY, v: EZ, n: EX } });
-      parts.push({ id: 'armB' + (sg > 0 ? 'R' : 'L'), name: `Arm B ${sg > 0 ? 'back' : 'front'}`, body: 'B', outline: armOutline(w, R, t, tabW), circles: [{ cx: 0, cy: 0, r: dS / 2 }], place: { o: [0, sg * xa, 0], u: EX, v: NZ, n: EY } });
-      // Pin: from 1 mm inside the block wall to 1 mm outside the arm
-      const a = s / 2 - t - 1, b = s / 2 + g + t + 1;
-      pins.push({ kind: 'dowel', name: 'Dowel (axis 1)', d: dS, len: b - a, c: [sg * (a + b) / 2, 0, 0], axis: EX, body: 'A' });
-      pins.push({ kind: 'dowel', name: 'Dowel (axis 2)', d: dS, len: b - a, c: [0, sg * (a + b) / 2, 0], axis: EY, body: 'B' });
+      parts.push({ id: 'armA' + (sg > 0 ? 'R' : 'L'), name: `Arm A ${sg > 0 ? 'right' : 'left'}`, body: 'A', outline: armOutline(w, R, t, tabW), circles: [{ cx: 0, cy: 0, r: dN / 2 }], place: { o: [sg * xa, 0, 0], u: EY, v: EZ, n: EX } });
+      parts.push({ id: 'armB' + (sg > 0 ? 'R' : 'L'), name: `Arm B ${sg > 0 ? 'back' : 'front'}`, body: 'B', outline: armOutline(w, R, t, tabW), circles: [{ cx: 0, cy: 0, r: dN / 2 }], place: { o: [0, sg * xa, 0], u: EX, v: NZ, n: EY } });
     }
   } else if (type === 'swivel') {
     // Stacked discs on one dowel along ez: keeper disc inside A (snug), A's face (loose), washer (loose),
@@ -124,7 +116,7 @@ export function portAt(box, face, du = 0, dv = 0) {
  * @param o.portA   a port frame on that side (see portAt)
  * @param o.B       a buildBox result (box coordinates)   @param o.portB  face name on B
  * @param o.h       hinge params (HINGE_PARAMS keys)      @param o.t  material thickness
- * @param o.bodies  {A, B, X} body names: the fixed side, the moving box, the cross block
+ * @param o.bodies  {A, B, X} body names: the fixed side, the moving box, the cross
  * @param o.label   prefix for hinge part names and ids, e.g. 'Neck'
  * @returns {parts (hinge parts + box B), hardware, joint, notes}
  */
@@ -186,7 +178,7 @@ export function joinBoxes(A, portA, B, portB, h, t) {
   return { ...r, parts: [...partsA, ...r.parts] };
 }
 
-/** World rotations for a pose: the cross block turns about ex, body B about ex then ey. */
+/** World rotations for a pose: the cross turns about ex, body B about ex then ey. */
 export function poseMotions(joint, a1, a2) {
   if (joint.type === 'swivel') { const RS = rotAxis(joint.ez, a1 * DEG); return { X: rotateAbout(RS, joint.pivot), B: rotateAbout(RS, joint.pivot) }; }
   const R1 = rotAxis(joint.ex, a1 * DEG);
@@ -194,7 +186,7 @@ export function poseMotions(joint, a1, a2) {
   return { X: rotateAbout(R1, joint.pivot), B: rotateAbout(RB, joint.pivot) };
 }
 
-/** Pose parts and pins: each joint moves its body B and its cross block by the joint's own (a1, a2). */
+/** Pose parts and pins: each joint moves its body B and its cross by the joint's own (a1, a2). */
 export function posed(parts, hardware, joints) {
   const mv = new Map();
   for (const j of joints) {

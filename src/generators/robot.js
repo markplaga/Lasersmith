@@ -1,5 +1,5 @@
 // Articulated robot (PRD 4.3 / 7): a torso box with a head, two arms and two legs, each on its own
-// hinge (cross hinge by default, pin hinge optional), with dowel pins. Every joint gets a range of
+// hinge (cross hinge with a nubbed cross by default, pin hinge optional; swivel neck on a dowel). Every joint gets a range of
 // motion from a 3D collision sweep and a pair of pose sliders.
 
 import { buildBox } from './fingerbox.js';
@@ -26,7 +26,7 @@ export default {
   title: 'Articulated robot',
   category: 'Hinges',
   source: 'native',
-  description: 'A posable robot: torso, head, arms and legs are finger-jointed boxes joined by cross hinges (or pin hinges) on wood dowels. Pose it with the sliders; each joint shows how far it can move before parts touch.',
+  description: 'A posable robot: torso, head, arms and legs are finger-jointed boxes joined by cross hinges (a flat cross with nubs) or pin hinges, with a swivel neck. Pose it with the sliders; each joint shows how far it can move before parts touch.',
   tags: ['robot', 'figure', 'hinge', 'cross hinge', 'posable', 'dowel'],
   params: [
     len('torsoW', 'Torso width', 110, 70, 400, 'Body'),
@@ -42,7 +42,7 @@ export default {
     len('finger', 'Finger width', 10, 3, 50, 'Limbs'),
     { key: 'neck', label: 'Neck joint', type: 'select', default: 'swivel', group: 'Limbs', choices: [{ value: 'swivel', label: 'Swivel (head turns)' }, { value: 'hinge', label: 'Same hinge as the limbs' }] },
     { key: 'face', label: 'Engrave a face', type: 'bool', default: true, group: 'Limbs' },
-    ...HINGE_PARAMS.map(q => (q.key === 'cube' ? { ...q, default: 20 } : q.key === 'armW' ? { ...q, default: 18 } : q)),
+    ...HINGE_PARAMS.map(q => (q.key === 'cube' ? { ...q, default: 22 } : q.key === 'armW' ? { ...q, default: 18 } : q)),
     ...JOINTS.flatMap(j => [
       { key: j.key + '1', label: `${j.label} (${j.a1})`, type: 'angle', default: POSE_DEFAULTS[j.key][0], min: -150, max: 150, step: 1, group: 'Pose' },
       { key: j.key + '2', label: `${j.label} (${j.a2})`, type: 'angle', default: POSE_DEFAULTS[j.key][1], min: -150, max: 150, step: 1, group: 'Pose', help: 'Cross hinge only.' },
@@ -95,10 +95,13 @@ export default {
     const pose = posed(parts, hardware, joints);
     const verb = (j, k) => (j.type === 'swivel' ? 'turns' : J[j.key][k]);
     const info = joints.map(j => `${J[j.key].label}: ${verb(j, 'a1')} ${fmtRange(j.range.a1)}` + (j.range.a2 ? `, ${verb(j, 'a2')} ${fmtRange(j.range.a2)}.` : '.'));
-    const lens = new Map();
-    for (const q of hardware) lens.set(q.len.toFixed(1), (lens.get(q.len.toFixed(1)) || 0) + 1);
-    info.push(`Dowels (${p.pinD} mm): ` + [...lens].map(([l, n]) => `${n} x ${l} mm`).join(', ') + '. Glue or press them into the arms; they turn in the ' + (p.hinge === 'cross' ? 'cross blocks.' : 'middle arms.') + (p.neck === 'swivel' ? ' The neck dowel is glued into the keeper disc and the head.' : ''));
-    info.push('Glue each hinge arm\'s tab into its slot before closing that box. ' + (p.neck === 'swivel' ? 'Put the neck keeper disc inside the torso, then close the torso last.' : 'Close the torso last.'));
+    if (hardware.length) {
+      const lens = new Map();
+      for (const q of hardware) lens.set(q.len.toFixed(1), (lens.get(q.len.toFixed(1)) || 0) + 1);
+      info.push(`Dowels (${p.pinD} mm): ` + [...lens].map(([l, n]) => `${n} x ${l} mm`).join(', ') + '.' + (p.hinge === 'pin' ? ' Glue them into the outer arms; they turn in the middle arms.' : '') + (p.neck === 'swivel' ? ' The neck dowel is glued into the keeper disc and the head.' : ''));
+    }
+    if (p.hinge === 'cross' || p.neck !== 'swivel') info.push(`Cross hinges: the nubs turn in ${(Math.SQRT2 * t + p.pinClear).toFixed(1)} mm holes in the arms; slip the four arms onto each cross before pushing their tabs into the box faces.`);
+    info.push("Glue each hinge arm's tab into its slot before closing that box. " + (p.neck === 'swivel' ? 'Put the neck keeper disc inside the torso, then close the torso last.' : 'Close the torso last.'));
     return makeDesign({
       title: 'Articulated robot',
       generator: { id: 'robot', params: p },

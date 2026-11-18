@@ -43,15 +43,18 @@ await test('hinge coupon: a face too small for the arms is flagged', () => {
   assert.ok(d.notes.some(n => /too small for the hinge arms/.test(n)));
 });
 
-await test('hinge coupon: arms snug, turning holes loose, slots match the tabs', () => {
+await test('cross hinge: flat cross with four nubs, round nub holes in the arms, slots match the tabs', () => {
   const p = defaults(coupon.params);
   const d = coupon.generate(p, mat(3));
   const arms = d.parts.filter(q => q.id.startsWith('arm'));
   assert.equal(arms.length, 4);
-  for (const a of arms) assert.equal(a.circles[0].r, p.pinD / 2);
-  const block = d.parts.filter(q => q.body === 'X');
-  assert.equal(block.length, 4);
-  for (const b of block) assert.equal(b.circles[0].r, (p.pinD + p.pinClear) / 2);
+  // Nubs are t x t: arm holes are the nub diagonal plus clearance
+  for (const a of arms) assert.ok(Math.abs(a.circles[0].r - (Math.SQRT2 * 3 + p.pinClear) / 2) < 1e-9);
+  const cross = d.parts.filter(q => q.body === 'X');
+  assert.equal(cross.length, 1);
+  const cb = bbox(cross[0].outline);
+  assert.ok(Math.abs(cb.w - (p.cube + 2 * (p.gap + 3 + 1))) < 1e-9 && cb.w === cb.h);
+  assert.equal(cross[0].outline.length, 20);
   for (const id of ['a-bottom', 'b-top']) {
     const face = d.parts.find(q => q.id === id);
     assert.equal(face.holes.length, 2, id);
@@ -60,7 +63,7 @@ await test('hinge coupon: arms snug, turning holes loose, slots match the tabs',
       assert.deepEqual([bb.w, bb.h].map(v => +v.toFixed(6)).sort((a, b) => a - b), [3, 10], id);
     }
   }
-  assert.equal(d.hardware.length, 4);
+  assert.equal(d.hardware.length, 0);
 });
 
 await test('hinge coupon: range of motion is found and posing past it warns (not an error)', () => {
@@ -83,15 +86,15 @@ await test('hinge coupon: posing moves only the lower body and the cross block',
   const base = defaults(coupon.params);
   const a = coupon.generate(base, mat(3)), b = coupon.generate({ ...base, pose1: 20, pose2: -15 }, mat(3));
   a.parts.forEach((p, i) => {
-    const same = near(p.place.o, b.parts[i].place.o, 1e-9);
+    const q = b.parts[i].place, same = near(p.place.o, q.o, 1e-9) && near(p.place.u, q.u, 1e-9) && near(p.place.v, q.v, 1e-9);
     assert.equal(same, p.body === 'A', p.name);
   });
 });
 
 await test('hinge coupon: README lists the dowels', () => {
-  const d = coupon.generate(defaults(coupon.params), mat(3));
+  const d = coupon.generate({ ...defaults(coupon.params), hinge: 'pin' }, mat(3));
   const txt = readme(nest(d, { sheetW: 914.4, sheetH: 609.6, margin: 5, gap: 3 }), d);
-  assert.match(txt, /4 x 6 mm wood dowel, cut to 9\.0 mm/);
+  assert.match(txt, /1 x 6 mm wood dowel, cut to 13\.0 mm/);
   assert.match(txt, /Range of motion/);
 });
 
@@ -101,7 +104,7 @@ await test('robot: cross and pin versions are clean, every joint has a range, le
     const d = robot.generate({ ...defaults(robot.params), hinge }, mat(t));
     assert.deepEqual(validate(d).filter(i => i.level !== 'info'), [], `${hinge} t${t}`);
     assert.equal(d.joints.length, 5);
-    assert.equal(d.hardware.length, hinge === 'cross' ? 17 : 5);
+    assert.equal(d.hardware.length, hinge === 'cross' ? 1 : 5);
     for (const j of d.joints) assert.ok(j.range.a1[0] <= -30 && j.range.a1[1] >= 30, `${j.label} ${JSON.stringify(j.range)}`);
     if (hinge === 'cross') {
       const L = d.joints.find(j => j.key === 'hipL').range.a2, R = d.joints.find(j => j.key === 'hipR').range.a2;
@@ -111,7 +114,7 @@ await test('robot: cross and pin versions are clean, every joint has a range, le
   const nod = robot.generate({ ...defaults(robot.params), neck: 'hinge' }, mat(3));
   assert.deepEqual(validate(nod).filter(i => i.level !== 'info'), []);
   assert.equal(nod.joints[0].type, 'cross');
-  assert.equal(nod.hardware.length, 20);
+  assert.equal(nod.hardware.length, 0);
 });
 
 await test('swivel coupon: discs on one dowel, holes snug/loose, turns all the way round', () => {

@@ -13,8 +13,9 @@ Done so far: **M1, local editor + export**, and **M2, hinges** (no accounts or C
     check there is no 3D overlap and no gap for many sizes and thicknesses.
   - *Kerf and fit coupon* (native): a comb whose slots are each compensated for a different kerf, plus a
     finger-joint pair. Cut it first on a new material.
-  - *Hinge test coupon* (native, M2): two small boxes joined by a cross hinge (Mark's universal joint,
-    two axes), a pin hinge (one axis) or a swivel, on wood dowels. Cut it first to check the dowel fit.
+  - *Hinge test coupon* (native, M2): two small boxes joined by a cross hinge (Mark's universal joint:
+    a flat square cross with a nub on each edge, two axes), a pin hinge or a swivel (both on wood dowels).
+    Cut it first to check the fit.
   - *Articulated robot* (native, M2): torso, head, two arms and two legs, each a finger-jointed box on its
     own hinge (cross or pin hinges, swivel or hinge neck), with an engraved face.
   - *26 boxes.py generators* (closed/based/universal boxes, hinge boxes, flex boxes, trays, drawers, gears,
@@ -30,8 +31,9 @@ Done so far: **M1, local editor + export**, and **M2, hinges** (no accounts or C
   Layers use the Boxsmith/Polysmith colours: red cut, blue score, green line engrave, black fill engrave;
   inner cuts are written before outer cuts.
 - **Hinges** (PRD section 7): boxes expose a port on every face; a hinge between two ports adds the arms
-  (with tabs through slots cut in each face), the cross block or swivel discs, and the dowels. Arm holes are
-  cut at the dowel size (glue or press fit); the part that turns gets a clearance. Every joint's range of
+  (with tabs through slots cut in each face), the nubbed cross or swivel discs, and any dowels. Cross nubs
+  are t x t and turn in round arm holes of their diagonal plus a clearance; dowels are snug where glued and
+  get the clearance where they turn. Every joint's range of
   motion is found by turning it in 3D until parts touch, and pose sliders show any pose (a pose past the
   range is a warning; the cut files are the same at any pose). Dowels are drawn in 3D and listed in the
   export README.
