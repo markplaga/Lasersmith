@@ -1,5 +1,5 @@
 // Lasersmith app shell: library -> parameters -> Design document -> validation, nesting, preview, export.
-import { LIBRARY, byId, MATERIALS, MACHINE } from './library.js';
+import { LIBRARY, byId, MATERIALS, MACHINE, STOCK, sheetSize } from './library.js';
 import { renderParams, defaults, fmtLen } from './ui/params.js';
 import { createPreview } from './ui/preview3d.js';
 import { validate, hasErrors } from './geom/validate.js';
@@ -14,6 +14,9 @@ import { mountVoxelEditor } from './ui/voxeleditor.js';
 import { gridFor } from './generators/voxel.js';
 import { mountAssemblyPanel } from './ui/assemblypanel.js';
 import { spotOn, fitSpot } from './generators/assembly.js';
+import { createSupabase } from './cloud/supabase.js';
+import { createStore, createMemoryStore } from './cloud/store.js';
+import { mountAccount } from './ui/account.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -56,10 +59,12 @@ const boxes = createBoxesClient({
 
 /* ---------- your designs (Claude-made or opened from a file) ---------- */
 let mine = loadMine();
-const entryOf = id => mine.find(e => e.id === id) || byId(id);
+const entryOf = id => mine.find(e => e.id === id) || (account && account.get(id)) || byId(id);
+const baseOf = id => { const e = entryOf(id); return e ? e.baseId || e.id : id; };
+let account = null;
 const sandbox = createSandbox(document.getElementById('ls-genworker')?.textContent || '');
 const matNow = () => ({ name: S.material.name, thickness: +S.material.thickness, kerf: +S.material.kerf });
-const rules = () => ({ bedW: +S.machine.bedW, bedH: +S.machine.bedH, margin: +S.machine.margin });
+const rules = () => { const z = sheetSize(S.machine); return { bedW: z.w, bedH: z.h, margin: +S.machine.margin, sheetName: z.label, rotate: S.machine.grain !== 'x' }; };
 
 /* ---------- 3D ---------- */
 const preview = createPreview($('#view'));
@@ -68,7 +73,7 @@ const preview = createPreview($('#view'));
 function renderLibrary() {
   const q = S.q.trim().toLowerCase();
   const cats = new Map();
-  for (const e of [...mine, ...LIBRARY]) {
+  for (const e of [...mine, ...(account ? account.entries() : []), ...LIBRARY]) {
     const hay = (e.title + ' ' + e.category + ' ' + (e.tags || []).join(' ') + ' ' + (e.cls || '')).toLowerCase();
     if (q && !hay.includes(q)) continue;
     if (!cats.has(e.category)) cats.set(e.category, []);
@@ -86,6 +91,9 @@ function renderLibrary() {
 }
 
 function badge(e) {
+  if (e.cloud) return account && account.get(e.id) && e.category === 'Saved to your account'
+    ? `<span class="src src-cloud">${e.cloud.visibility === 'private' ? 'Saved' : 'Shared'}</span>`
+    : `<span class="src src-cloud">by ${esc((e.cloud.author || 'someone').slice(0, 18))}</span>`;
   if (e.source === 'native') return '<span class="src src-native">Native 3D</span>';
   if (e.source === 'claude') return `<span class="src src-mine">${e.origin === 'file' ? 'Opened' : 'Claude'}</span>`;
   return '<span class="src src-py">boxes.py</span>';
@@ -97,13 +105,21 @@ async function select(id) {
   save();
   renderLibrary();
   const e = entryOf(id);
+  if (e.cloud && !e.loaded) {
+    setStatus('Opening shared design…', true);
+    try { await account.load(e); } catch (err) { setStatus('', false); toast(err.message); return select('finger-box'); }
+    if (S.entry !== id) return;
+    setStatus('', false);
+  }
+  const base = e.baseId || e.id;
   $('#dtitle').textContent = e.title;
   $('#ddesc').textContent = e.description || '';
   $('#pyNote').hidden = e.source !== 'boxes.py';
   renderMineTools(e);
+  if (account) account.tools(e);
   panel.refresh();
-  $('#voxelCard').hidden = id !== 'voxel-sculpture';
-  $('#asmCard').hidden = id !== 'assembly';
+  $('#voxelCard').hidden = base !== 'voxel-sculpture';
+  $('#asmCard').hidden = base !== 'assembly';
   stopPick();
   if (e.source === 'claude') {
     schema = e.params || [];
@@ -112,8 +128,8 @@ async function select(id) {
   } else if (e.source === 'native') {
     schema = e.gen.params;
     mountParams();
-    if (id === 'voxel-sculpture') voxEd.load();
-    if (id === 'assembly') asmPanel.load();
+    if (base === 'voxel-sculpture') voxEd.load();
+    if (base === 'assembly') asmPanel.load();
     regenerate(true);
   } else {
     schema = [];
@@ -178,7 +194,8 @@ async function run() {
     if (my !== gen) return;
     design = d;
     issues = validate(design, rules());
-    nested = nest(design, { sheetW: +S.machine.bedW, sheetH: +S.machine.bedH, margin: +S.machine.margin, gap: +S.machine.gap });
+    const z = sheetSize(S.machine);
+    nested = nest(design, { sheetW: z.w, sheetH: z.h, margin: +S.machine.margin, gap: +S.machine.gap, rotate: S.machine.grain !== 'x' });
     if (S.sheet >= nested.sheets.length) S.sheet = 0;
     render();
     setStatus('', false);
@@ -202,7 +219,7 @@ function render() {
   renderSheets();
   renderIssues();
   renderStats();
-  if (S.entry === 'assembly') asmPanel.refresh();
+  if (baseOf(S.entry) === 'assembly') asmPanel.refresh();
 }
 
 function renderSheets() {
@@ -308,6 +325,11 @@ function mountMaterial() {
   $('#bedW').value = fmtLen(S.machine.bedW, S.units);
   $('#bedH').value = fmtLen(S.machine.bedH, S.units);
   $('#margin').value = fmtLen(S.machine.margin, S.units);
+  $('#stockSel').innerHTML = STOCK.map(s => `<option value="${s.id}" ${s.id === (S.machine.stock || 'bed') ? 'selected' : ''}>${esc(s.label)}</option>`).join('');
+  $('#stockCustom').hidden = S.machine.stock !== 'custom';
+  $('#stockW').value = fmtLen(S.machine.stockW, S.units);
+  $('#stockH').value = fmtLen(S.machine.stockH, S.units);
+  $('#grainSel').value = S.machine.grain || 'free';
   document.querySelectorAll('.u').forEach(el => { el.textContent = S.units; });
   document.querySelectorAll('#unitSeg button').forEach(b => b.classList.toggle('on', b.dataset.u === S.units));
 }
@@ -329,7 +351,9 @@ $('#kerf').addEventListener('input', e => {
   S.material = { ...S.material, kerf: v };
   save(); regenerate();
 });
-for (const k of ['bedW', 'bedH', 'margin']) {
+$('#stockSel').addEventListener('change', e => { S.machine.stock = e.target.value; S.sheet = 0; save(); mountMaterial(); regenerate(); });
+$('#grainSel').addEventListener('change', e => { S.machine.grain = e.target.value; save(); regenerate(); });
+for (const k of ['bedW', 'bedH', 'margin', 'stockW', 'stockH']) {
   $('#' + k).addEventListener('input', e => {
     const v = toMM(parseFloat(e.target.value));
     if (!(v >= 0)) return;
@@ -338,7 +362,7 @@ for (const k of ['bedW', 'bedH', 'margin']) {
 }
 $('#bedSwap').addEventListener('click', () => { [S.machine.bedW, S.machine.bedH] = [S.machine.bedH, S.machine.bedW]; save(); mountMaterial(); regenerate(); });
 document.querySelectorAll('#unitSeg button').forEach(b => b.addEventListener('click', () => {
-  S.units = b.dataset.u; save(); mountMaterial(); mountParams(); if (design) { renderSheets(); renderStats(); } if (S.entry === 'assembly') asmPanel.load();
+  S.units = b.dataset.u; save(); mountMaterial(); mountParams(); if (design) { renderSheets(); renderStats(); } if (baseOf(S.entry) === 'assembly') asmPanel.load();
 }));
 document.querySelectorAll('#viewSeg button').forEach(b => b.addEventListener('click', () => {
   S.view = b.dataset.v; save();
@@ -385,7 +409,7 @@ $('#maxBtn').addEventListener('click', () => setMax(!viewEl.classList.contains('
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && viewEl.classList.contains('max')) setMax(false); });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && viewEl.classList.contains('max')) setMax(false); });
 $('#stereoDepthIn').addEventListener('input', e => { S.stereoDeg = +e.target.value; save(); preview.setStereo(S.stereo, S.stereoDeg); });
-$('#q').addEventListener('input', e => { S.q = e.target.value; renderLibrary(); });
+$('#q').addEventListener('input', e => { S.q = e.target.value; renderLibrary(); if (account) account.search(S.q); });
 $('#reset').addEventListener('click', () => { delete S.params[S.entry]; save(); mountParams(); regenerate(true); });
 
 /* ---------- your designs: tools, open from file ---------- */
@@ -393,16 +417,18 @@ function renderMineTools(e) {
   const el = $('#mineTools');
   if (e.source !== 'claude') { el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
-  el.innerHTML = `<button class="btn ghost" data-mt="dl">Download generator</button>${e.versions && e.versions.length ? '<button class="btn ghost" data-mt="undo">Undo last change</button>' : ''}<button class="btn ghost" data-mt="del">Delete</button>`;
+  const local = mine.includes(e);
+  el.innerHTML = `<button class="btn ghost" data-mt="dl">Download generator</button>${e.versions && e.versions.length ? '<button class="btn ghost" data-mt="undo">Undo last change</button>' : ''}${local ? '<button class="btn ghost" data-mt="del">Delete</button>' : ''}`;
   el.querySelector('[data-mt=dl]').addEventListener('click', () => saveFile(slug(e.title) + '.generator.js', generatorFile(e), 'text/javascript'));
   const undo = el.querySelector('[data-mt=undo]');
   if (undo) undo.addEventListener('click', () => {
     const prev = e.versions.pop();
     Object.assign(e, prev);
-    saveMine(mine); select(e.id); toast('Went back to the previous version');
+    if (mine.includes(e)) saveMine(mine);
+    select(e.id); toast('Went back to the previous version');
   });
   const del = el.querySelector('[data-mt=del]');
-  del.addEventListener('click', () => {
+  if (del) del.addEventListener('click', () => {
     if (!del.dataset.armed) { del.dataset.armed = '1'; del.textContent = 'Click again to delete'; setTimeout(() => { if (del.isConnected) { delete del.dataset.armed; del.textContent = 'Delete'; } }, 4000); return; }
     mine = mine.filter(x => x.id !== e.id); delete S.params[e.id];
     saveMine(mine); select('finger-box'); toast('Deleted ' + e.title);
@@ -483,7 +509,7 @@ const panel = mountClaudePanel($('#claudeCard'), {
   currentEntry: () => entryOf(S.entry),
   currentParams,
   material: matNow,
-  machine: () => ({ ...S.machine }),
+  machine: () => { const z = sheetSize(S.machine); return { ...S.machine, sheetW: z.w, sheetH: z.h }; },
   run: (src, params) => sandbox.run(src, params, matNow()),
   check: d => validate(d, rules()).filter(i => i.level === 'error').map(i => (i.part ? i.part + ': ' : '') + i.msg),
   onResult: r => addOrUpdate({ code: r.source, meta: r.meta, chat: r.chat, changing: r.changing }),
@@ -507,8 +533,37 @@ $('#explode').value = S.explode;
 applyStereo();
 $('#q').value = S.q;
 mountMaterial();
+/* ---------- accounts and the shared library (M4) ---------- */
+const memCloud = window.__LASERSMITH_MEMORY_CLOUD__;
+const store = memCloud ? createMemoryStore(memCloud) : CFG.supabaseUrl && CFG.supabaseKey ? createStore(createSupabase({ url: CFG.supabaseUrl, anonKey: CFG.supabaseKey })) : null;
+const reopen = S.entry.startsWith('cloud-') ? S.entry : null;
+if (store) {
+  account = mountAccount({
+    store, $,
+    entryOf,
+    current: () => entryOf(S.entry),
+    currentId: () => S.entry,
+    params: currentParams,
+    paramsOf: id => ({ ...(S.params[id] || {}) }),
+    setParams: (id, p) => { S.params[id] = { ...p }; save(); },
+    hasErrors: () => hasErrors(issues),
+    material: () => ({ ...S.material }),
+    snapshot: () => { try { return design && design.parts.some(p => p.place) ? preview.snapshot() : null; } catch (e) { return null; } },
+    select,
+    library: renderLibrary,
+    toast, saveFile,
+    mine: () => mine,
+    location: window.location,
+  });
+}
 if (!entryOf(S.entry)) S.entry = 'finger-box';
 select(S.entry);
+if (account) {
+  account.boot().then(id => {
+    if (id) select(id);
+    else if (reopen && account.has(reopen)) select(reopen);
+  });
+}
 
 // test hook
-window.__lasersmith = { get design() { return design; }, get issues() { return issues; }, get nested() { return nested; }, get mine() { return mine; }, sandbox, select, state: S };
+window.__lasersmith = { get store() { return store; }, get design() { return design; }, get issues() { return issues; }, get nested() { return nested; }, get mine() { return mine; }, sandbox, select, state: S };

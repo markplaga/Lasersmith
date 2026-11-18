@@ -87,3 +87,20 @@ await test('assembly guide: parts in assembly order with drawings, sheets, notes
   assert.equal((html.match(/<figure class="sheet">/g) || []).length, n.sheets.length);
   assert.ok(html.includes('wood dowel'));
 });
+
+await test('stock sheets and grain lock: smaller sheets, no turned parts, clear message', async () => {
+  const { sheetSize } = await import('../src/library.js');
+  const { validate } = await import('../src/geom/validate.js');
+  const m = { bedW: 914.4, bedH: 609.6, margin: 5, stock: '12x12', stockW: 0, stockH: 0, grain: 'free' };
+  assert.deepEqual([sheetSize(m).w, sheetSize(m).h], [304.8, 304.8]);
+  assert.equal(sheetSize({ ...m, stock: 'custom', stockW: 2000, stockH: 100 }).w, 914.4, 'never larger than the bed');
+  assert.equal(sheetSize({ ...m, stock: 'bed' }).label, 'bed');
+  // A tall thin box: front panels are 250 x 60, which fit a 280 x 120 sheet only lying along X.
+  const d = box.generate({ ...defaults(box.params), w: 60, d: 60, h: 250 }, mat);
+  const free = nest(d, { sheetW: 280, sheetH: 120, margin: 5, gap: 3, rotate: true });
+  assert.ok(free.sheets.some(s => s.items.some(i => i.rot)), 'free nesting turns parts');
+  const locked = nest(d, { sheetW: 280, sheetH: 120, margin: 5, gap: 3, rotate: false });
+  assert.ok(locked.sheets.every(s => s.items.every(i => !i.rot)), 'grain lock never turns parts');
+  const issues = validate(d, { bedW: 120, bedH: 280, margin: 5, sheetName: 'stock sheet', rotate: false });
+  assert.ok(issues.some(i => i.code === 'too-big' && /grain is locked/.test(i.msg) && /stock sheet/.test(i.msg)));
+});

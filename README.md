@@ -3,7 +3,7 @@
 Parametric laser-cut designs: pick something from the library, make it bespoke, and export files that
 cut right the first time in LightBurn. See [docs/PRD.md](docs/PRD.md) for the full plan.
 
-Done so far: **M1, local editor + export**, **M2, hinges**, and **M3, Claude mode** and **M5, voxel sculptures** (M4 accounts not yet).
+Done so far: **M1, local editor + export**, **M2, hinges**, **M3, Claude mode**, **M4, accounts and the shared library** (switches on with Supabase keys: see [docs/accounts.md](docs/accounts.md)) and **M5, voxel sculptures**.
 
 ## What works
 

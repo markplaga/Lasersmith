@@ -136,7 +136,9 @@ Prefer params for every dimension a person might want to change.`;
 export function machineText(material, machine) {
   return `USER'S SETUP
 Material: ${material.name}, ${material.thickness} mm thick, kerf ${material.kerf} mm.
-Laser bed: ${machine.bedW} x ${machine.bedH} mm (margin ${machine.margin} mm), LightBurn. Large designs are nested onto several sheets.`;
+Laser bed: ${machine.bedW} x ${machine.bedH} mm (margin ${machine.margin} mm), LightBurn. Large designs are nested onto several sheets.`
+    + (machine.sheetW && (machine.sheetW < machine.bedW || machine.sheetH < machine.bedH) ? `\nStock sheets: ${machine.sheetW} x ${machine.sheetH} mm; every part must fit one.` : '')
+    + (machine.grain === 'x' ? '\nGrain is locked along X: parts are not turned when nested.' : '');
 }
 
 /** The standing instructions turn (first user turn of every conversation). */

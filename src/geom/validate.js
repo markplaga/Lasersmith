@@ -26,8 +26,10 @@ export function validate(design, rules = {}) {
     // Bed fit, after kerf growth
     const bb = bbox(part.outline), k = part.kerfApplied ? 0 : design.material.kerf;
     const w = bb.w + k, h = bb.h + k, W = R.bedW - 2 * R.margin, H = R.bedH - 2 * R.margin;
-    if (!((w <= W && h <= H) || (h <= W && w <= H))) {
-      issues.push({ level: 'error', code: 'too-big', msg: `${w.toFixed(1)} x ${h.toFixed(1)} mm does not fit the ${R.bedW.toFixed(0)} x ${R.bedH.toFixed(0)} mm bed (margin ${R.margin} mm). Split it or shrink the design.`, part: P });
+    const turn = R.rotate !== false;
+    if (!((w <= W && h <= H) || (turn && h <= W && w <= H))) {
+      const why = !turn && h <= W && w <= H ? ' It would fit turned, but the grain is locked.' : ' Split it or shrink the design.';
+      issues.push({ level: 'error', code: 'too-big', msg: `${w.toFixed(1)} x ${h.toFixed(1)} mm does not fit the ${R.bedW.toFixed(0)} x ${R.bedH.toFixed(0)} mm ${R.sheetName || 'bed'} (margin ${R.margin} mm).${why}`, part: P });
     }
     // Thin bridges between cut loops of the same part
     const loops = [part.outline, ...part.holes, ...part.circles.map(c => circleLoop(c.cx, c.cy, c.r, 0.1))];
