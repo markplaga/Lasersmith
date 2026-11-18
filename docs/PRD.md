@@ -140,7 +140,7 @@ boxes.py output is SVG, so a thin adapter turns it into a Design document. boxes
 
 Fallback if Pyodide proves too heavy: a Python serverless function that runs boxes.py and returns SVG.
 
-> **Licence note:** boxes.py is GPL-3.0. Shipping it to browsers is distribution, so the simplest clean path is to licence Lasersmith under GPL-3.0 too. See open question Q7.
+> **Licence:** boxes.py is GPL-3.0 and shipping it to browsers is distribution, so Lasersmith is licensed GPL-3.0 too (decided, Q7).
 
 ### 6.4 Backend and hosting
 
@@ -287,7 +287,7 @@ M2 before M3 is deliberate: Claude needs the joint and port vocabulary to build 
 | **Q4** | Hosting and backend language? | **Netlify** static hosting + **Netlify Functions in TypeScript**, **Supabase** for Postgres/auth/storage. Keeps one language (JS/TS) across front end, generators and backend; boxes.py runs client-side in Pyodide, so no Python server. |
 | **Q5** | First milestone? | **M1: local editor + export** (section 14), with no accounts or Claude, so the geometry core, export and the boxes.py bridge are proven on the real laser first. |
 | **Q6** | Should the artifact (Claude mode) be able to save to the public library? | Yes, after the user signs in from inside the artifact; otherwise "download design file" and import on the site. |
-| **Q7** | Licence? | **GPL-3.0**, to match boxes.py, which Lasersmith ships to browsers. Alternative: keep boxes.py support as a separately licensed, optional module. |
+| **Q7** | Licence? | **Decided (Mark, 2026-11-17): GPL-3.0**, to match boxes.py, which Lasersmith ships to browsers. `LICENSE` added at the repo root. |
 | **Q8** | Who can publish Claude-generated generators publicly? | Any signed-in user, but only after the validator passes and the code runs in the sandbox; flag "Claude-made" on the entry. |
 
 ## 16. References
