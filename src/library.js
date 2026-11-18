@@ -4,9 +4,10 @@ import fitCoupon from './generators/fitcoupon.js';
 import hingeCoupon from './generators/hingecoupon.js';
 import robot from './generators/robot.js';
 import voxel from './generators/voxel.js';
+import assembly from './generators/assembly.js';
 import { BOXES_CATALOG } from './boxespy/catalog.js';
 
-export const NATIVE = [fingerBox, fitCoupon, hingeCoupon, robot, voxel];
+export const NATIVE = [fingerBox, fitCoupon, hingeCoupon, robot, assembly, voxel];
 
 export const LIBRARY = [
   ...NATIVE.map(g => ({ id: g.id, title: g.title, category: g.category, source: 'native', description: g.description, tags: g.tags, gen: g })),

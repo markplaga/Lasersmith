@@ -204,6 +204,29 @@ export function createPreview(canvas) {
     }
   }
 
+  /**
+   * The part under a point on the canvas (client coordinates): {part, point: [x, y, z]} in design
+   * coordinates, or null. In stereo, either picture can be clicked.
+   */
+  const ray = new THREE.Raycaster();
+  function pick(clientX, clientY) {
+    const r = canvas.getBoundingClientRect();
+    let x = clientX - r.left, w = r.width;
+    if (stereo !== 'off') { w = r.width / 2; x = x % w; }
+    const ndc = new THREE.Vector2((x / w) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    const aspect = camera.aspect;
+    camera.aspect = w / r.height; camera.updateProjectionMatrix();
+    root.updateMatrixWorld(true);
+    ray.setFromCamera(ndc, camera);
+    camera.aspect = aspect; camera.updateProjectionMatrix();
+    const hits = ray.intersectObjects(meshes.map(m => m.g.children[0]), false);
+    if (!hits.length) return null;
+    const m = meshes.find(q => q.g.children[0] === hits[0].object);
+    const pt = hits[0].point.clone();
+    root.worldToLocal(pt);
+    return { part: m.part, point: [pt.x, pt.y, pt.z] };
+  }
+
   /** mode 'off' | 'cross' | 'parallel'; deg = convergence angle (depth) */
   function setStereo(mode, deg) {
     if (mode !== stereo) lastKey = ''; // re-frame for the half-width pictures
@@ -211,5 +234,5 @@ export function createPreview(canvas) {
     if (deg) stereoDeg = deg;
   }
 
-  return { show, setExplode, setStereo, reframe() { lastKey = ''; }, snapshot: () => canvas.toDataURL('image/png'), dispose() { cancelAnimationFrame(raf); clear(); renderer.dispose(); } };
+  return { show, setExplode, setStereo, pick, reframe() { lastKey = ''; }, snapshot: () => canvas.toDataURL('image/png'), dispose() { cancelAnimationFrame(raf); clear(); renderer.dispose(); } };
 }

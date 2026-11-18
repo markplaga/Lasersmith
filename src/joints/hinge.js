@@ -11,7 +11,7 @@
 //
 // Pin hinge and swivel use dowels: snug where glued (nominal hole), loose where they turn (+ clearance). Arms end in a tab that passes through a slot in the body's face plate.
 
-import { v3, rotAxis, mulM, mul, rotateAbout, movePlace, applyRigid, frameToFrame, toLocal } from '../geom/frame.js';
+import { v3, rotAxis, mulM, mul, rotateAbout, movePlace, applyRigid, frameToFrame, toLocal, composeRigid } from '../geom/frame.js';
 import { collisionsBetween } from '../geom/validate.js';
 import { bbox, pointInLoop, circleLoop } from '../geom/poly.js';
 import { makePart } from '../geom/design.js';
@@ -168,7 +168,9 @@ export function addHinge({ partsA, portA, B, portB, h, t, bodies = { A: 'A', B: 
     face.engrave = [];
   }
   const joint = { type: H.type, label, pivot, ex, ey, ez, R: H.R, a1: 0, a2: 0, bodyA: bodies.A, bodyB: bodies.B, bodyX: bodies.X };
-  return { parts: [...H.parts, ...partsB], hardware: pins, joint, notes };
+  // B's ports where B now sits, so further objects can hang off it (assemblies).
+  const portsB = B.ports.map(q => ({ ...movePlace(q, MB), name: q.name, part: q.part, size: q.size }));
+  return { parts: [...H.parts, ...partsB], hardware: pins, joint, notes, portsB };
 }
 
 /** Coupon helper: join box B under box A (both buildBox results), A fixed. */
@@ -186,14 +188,21 @@ export function poseMotions(joint, a1, a2) {
   return { X: rotateAbout(R1, joint.pivot), B: rotateAbout(RB, joint.pivot) };
 }
 
-/** Pose parts and pins: each joint moves its body B and its cross by the joint's own (a1, a2). */
+/**
+ * Pose parts and pins: each joint moves its body B (and the bodies in joint.carries, the objects that
+ * hang off B) and its cross by the joint's own (a1, a2). List parent joints before their children:
+ * a child's motion is applied first, then its parents' on top.
+ */
 export function posed(parts, hardware, joints) {
   const mv = new Map();
-  for (const j of joints) {
+  const put = (body, M) => mv.set(body, mv.has(body) ? composeRigid(M, mv.get(body)) : M);
+  for (let i = joints.length - 1; i >= 0; i--) {
+    const j = joints[i];
     if (!j.a1 && !j.a2) continue;
     const M = poseMotions(j, j.a1 || 0, j.type === 'cross' ? j.a2 || 0 : 0);
-    mv.set(j.bodyB, M.B);
-    if (j.type === 'cross') mv.set(j.bodyX, M.X);
+    put(j.bodyB, M.B);
+    for (const b of j.carries || []) put(b, M.B);
+    if (j.type === 'cross') put(j.bodyX, M.X);
   }
   return {
     parts: parts.map(p => { const m = mv.get(p.body); return m ? { ...p, place: movePlace(p.place, m) } : p; }),
@@ -213,8 +222,9 @@ export function rangeOfMotion(parts, joint, t, { stepDeg = 3, maxDeg = 150 } = {
     for (let a = stepDeg; a <= maxDeg; a += stepDeg) {
       const ang = dir * a;
       const P = posed(parts, [], [{ ...joint, a1: axis === 1 ? ang : 0, a2: axis === 2 ? ang : 0 }]).parts;
-      const B = P.filter(p => p.body === joint.bodyB), X = P.filter(p => p.body === joint.bodyX);
-      const rest = P.filter(p => p.body !== joint.bodyB && p.body !== joint.bodyX);
+      const moving = new Set([joint.bodyB, ...(joint.carries || [])]);
+      const B = P.filter(p => moving.has(p.body)), X = P.filter(p => p.body === joint.bodyX);
+      const rest = P.filter(p => !moving.has(p.body) && p.body !== joint.bodyX);
       const o = { step: 1.5, first: true };
       const hit = collisionsBetween(t, B, rest, o).length || (X.length && (collisionsBetween(t, X, rest, o).length || collisionsBetween(t, B, X, o).length));
       if (hit) break;

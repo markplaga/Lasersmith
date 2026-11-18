@@ -61,6 +61,20 @@ body[data-claude=on] #mode{color:var(--ok);border-color:var(--ok)}
 .cp-row .grow{flex:1}
 .cp-img{padding:6px 10px;font-size:12px;cursor:pointer}
 #cpStatus{font-size:12.5px;margin:8px 0 0}
+.as-obj{border-top:1px solid var(--line);padding:6px 0}
+.as-obj summary{cursor:pointer;list-style:none;display:flex;gap:8px;align-items:baseline;padding:4px 0;font-size:13.5px}
+.as-obj summary::-webkit-details-marker{display:none}
+.as-obj summary::before{content:"▸";color:var(--mute);font-size:11px}
+.as-obj[open] summary::before{content:"▾"}
+.as-obj summary span{color:var(--mute);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.as-obj select{width:150px}
+.as-name{width:150px}
+.as-size{display:flex;gap:8px;margin:9px 0}
+.as-n{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mute)}
+.as-n .num{width:auto}
+.as-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
+.as-bar .btn{padding:5px 10px;font-size:12px}
+#view.picking{cursor:crosshair}
 .vx-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
 .vx-bar .btn{padding:5px 10px;font-size:12px}
 .vx-chk{font-size:12.5px;display:flex;gap:5px;align-items:center}
@@ -186,6 +200,7 @@ footer a{color:inherit}
         <div id="params"></div>
       </section>
       <section class="card" id="voxelCard" hidden></section>
+      <section class="card" id="asmCard" hidden></section>
       <section class="card">
         <h2>Material and machine</h2>
         <div class="row"><label for="matSel">Material</label><select id="matSel"></select></div>
