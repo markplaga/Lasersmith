@@ -1,6 +1,6 @@
 # Lasersmith: Product Requirements Document
 
-**Status:** v0.2, decisions confirmed · **Owner:** Mark · **Last updated:** 2026-11-18
+**Status:** v0.2, decisions confirmed · **Owner:** Mark · **Last updated:** 2026-11-18 (stereo preview added)
 
 Lasersmith is a public website for designing laser-cut objects. People pick a design from a shared library and tune its parameters until it fits their need, or (when Claude is available) describe something that does not exist yet and have Claude build it. Designs can be joined with wooden hinges into posable, articulated objects, and solid shapes can be turned into "voxel" sculptures made of interlocking flat planes. Every output is a cut-ready file for a 24" x 36" laser in LightBurn.
 
@@ -56,6 +56,7 @@ Lasersmith is one codebase that runs in two places. The difference is whether Cl
 
 1. Browse or search the library (filters: category, joint type, sheet count, material).
 2. Open a design: 3D preview on the left, parameter panel on the right, sheet layout below.
+   The 3D preview can also be viewed **stereoscopically** (section 12.1).
 3. Change parameters (dimensions in mm or inches, material, thickness, kerf, options). Preview and validation update live.
 4. Fix any validation warnings (parts too big for the bed, slots narrower than material, thin bridges).
 5. Export: SVG, DXF, or LightBurn `.lbrn2`, one file per sheet or a zip with an assembly sheet.
@@ -258,6 +259,10 @@ A design cannot be exported or published until these pass (warnings can be overr
 - **Security:** Claude/user generator code only runs in the sandboxed worker; no `eval` on the main thread; uploaded SVGs are sanitised.
 - **Mobile:** browsing and parameter editing work on a phone; assembly and voxel editing are desktop-first.
 
+### 12.1 Stereoscopic preview
+
+Added by Mark (2026-11-18), matching Boxsmith. The 3D preview has a view menu with **Normal**, **Stereo, cross-eyed** and **Stereo, parallel**. Stereo shows two pictures side by side for 3D without glasses: cross-eyed puts the right eye's view on the left, parallel puts the left eye's view on the left. A **Depth** slider (1 to 8 degrees of eye convergence, default 3.5) sets how strong the effect is. Orbit, zoom and explode keep working in stereo, and the choice is remembered in the browser. It applies to every 3D view: assembled designs, flat sheets, hinge range-of-motion previews and voxel sculptures. Shipped in M1.
+
 ## 13. Success measures
 
 - Mark can go from description to a cut, assembled articulated robot with working cross hinges, with no manual CAD edits.
@@ -269,7 +274,7 @@ A design cannot be exported or published until these pass (warnings can be overr
 
 | # | Milestone | Contents |
 |---|---|---|
-| **M1** | **Local editor + export** | Repo scaffold (src/, build.js, tests), geometry core, Design document, 3D preview, parameter panel, validation, nesting on 24" x 36", SVG/DXF/LBRN2 export. Library: ~20 boxes.py generators via Pyodide plus Boxsmith closed box. No accounts. Ships as both the static site and the artifact. |
+| **M1** | **Local editor + export** | Repo scaffold (src/, build.js, tests), geometry core, Design document, 3D preview (with stereo, 12.1), parameter panel, validation, nesting on 24" x 36", SVG/DXF/LBRN2 export. Library: ~20 boxes.py generators via Pyodide plus Boxsmith closed box. No accounts. Ships as both the static site and the artifact. |
 | **M2** | **Hinges** | Ports, pin hinge, cross hinge, swivel, range-of-motion preview, hinge test coupon. Articulated robot as the first connected design. |
 | **M3** | **Claude mode** | Generator authoring by Claude, sandbox, repair loop, chat-driven edits. |
 | **M4** | **Accounts + shared library** | Supabase, sign-in, save/fork/publish, public browse and search. |

@@ -53,6 +53,22 @@ await page.fill('[data-key=width]', '200');
 await page.waitForFunction(() => __lasersmith.design.view.bounds[0] === 200);
 check(true, 'width parameter regenerates the design');
 
+// stereo
+await page.selectOption('#stereoSel', 'cross');
+await page.waitForTimeout(500);
+check(await page.isVisible('#stereoDepth'), 'stereo depth slider shows');
+await page.screenshot({ path: path.join(shots, 'stereo-cross.png') });
+const halves = await page.evaluate(() => {
+  const c = document.getElementById('view'), g = document.createElement('canvas');
+  g.width = c.width; g.height = c.height; const x = g.getContext('2d'); x.drawImage(c, 0, 0);
+  const d = x.getImageData(0, 0, c.width, c.height).data, mid = c.width / 2;
+  let l = 0, r = 0, cx = 0, cnt = 0;
+  for (let y = 0; y < c.height; y += 4) for (let i = 0; i < c.width; i += 4) { if (d[(y * c.width + i) * 4 + 3] > 0) { if (i < mid) l++; else r++; } }
+  return { l, r };
+});
+check(halves.l > 100 && halves.r > 100, 'stereo draws two pictures ' + JSON.stringify(halves));
+await page.selectOption('#stereoSel', 'off');
+
 // export LBRN2
 const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-export=lbrn2]')]);
 const body = fs.readFileSync(await dl.path(), 'utf8');

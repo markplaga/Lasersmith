@@ -36,7 +36,38 @@ export function createPreview(canvas) {
     }
   }
   let raf = 0;
-  const loop = () => { raf = requestAnimationFrame(loop); resize(); controls.update(); renderer.render(scene, camera); };
+  // Stereo (as in Boxsmith): two pictures side by side for 3D without glasses.
+  // cross: left picture is the RIGHT eye's view; parallel: left picture is the left eye's.
+  // Eyes are offset along the camera's right vector so the convergence angle is `stereoDeg`.
+  let stereo = 'off', stereoDeg = 3.5;
+  const right = new THREE.Vector3(), base = new THREE.Vector3();
+  function draw() {
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (stereo === 'off' || !w || !h) {
+      camera.aspect = w / h || 1; camera.updateProjectionMatrix();
+      renderer.setScissorTest(false); renderer.setViewport(0, 0, w, h); renderer.render(scene, camera);
+      return;
+    }
+    const vw = w / 2;
+    base.copy(camera.position);
+    const dist = base.distanceTo(controls.target);
+    const e = dist * Math.tan((stereoDeg / 2) * Math.PI / 180);
+    right.setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+    camera.aspect = vw / h; camera.updateProjectionMatrix();
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, w, h);
+    renderer.clear();
+    renderer.setScissorTest(true);
+    (stereo === 'cross' ? [1, -1] : [-1, 1]).forEach((eye, i) => {
+      camera.position.copy(base).addScaledVector(right, eye * e);
+      camera.lookAt(controls.target);
+      renderer.setViewport(i * vw, 0, vw, h); renderer.setScissor(i * vw, 0, vw, h);
+      renderer.render(scene, camera);
+    });
+    renderer.setScissorTest(false);
+    camera.position.copy(base); camera.lookAt(controls.target);
+  }
+  const loop = () => { raf = requestAnimationFrame(loop); resize(); controls.update(); draw(); };
   loop();
 
   function clear() {
@@ -132,7 +163,8 @@ export function createPreview(canvas) {
       controls.target.copy(center);
       const dir = assembled ? new THREE.Vector3(0.9, -1.4, 0.9) : new THREE.Vector3(0.0001, -0.35, 1);
       // Fit the bounding sphere into the narrower of the two fields of view.
-      const vfov = (camera.fov * Math.PI) / 180, hfov = 2 * Math.atan(Math.tan(vfov / 2) * Math.max(0.5, camera.aspect || 1));
+      const asp = (canvas.clientWidth / (canvas.clientHeight || 1) || 1) / (stereo === 'off' ? 1 : 2);
+      const vfov = (camera.fov * Math.PI) / 180, hfov = 2 * Math.atan(Math.tan(vfov / 2) * Math.max(0.3, asp));
       const radius = size.length() / 2;
       camera.position.copy(center).add(dir.normalize().multiplyScalar((radius / Math.sin(Math.min(vfov, hfov) / 2)) * 1.02));
       camera.near = R / 100; camera.far = R * 50; camera.updateProjectionMatrix();
@@ -153,5 +185,12 @@ export function createPreview(canvas) {
     }
   }
 
-  return { show, setExplode, snapshot: () => canvas.toDataURL('image/png'), dispose() { cancelAnimationFrame(raf); clear(); renderer.dispose(); } };
+  /** mode 'off' | 'cross' | 'parallel'; deg = convergence angle (depth) */
+  function setStereo(mode, deg) {
+    if (mode !== stereo) lastKey = ''; // re-frame for the half-width pictures
+    stereo = mode || 'off';
+    if (deg) stereoDeg = deg;
+  }
+
+  return { show, setExplode, setStereo, snapshot: () => canvas.toDataURL('image/png'), dispose() { cancelAnimationFrame(raf); clear(); renderer.dispose(); } };
 }

@@ -25,7 +25,8 @@ This is **milestone M1: local editor + export** (no accounts, no Claude features
   a README. Kerf compensation is applied on export (boxes.py designs apply it themselves via `burn`).
   Layers use the Boxsmith/Polysmith colours: red cut, blue score, green line engrave, black fill engrave;
   inner cuts are written before outer cuts.
-- **3D preview** (three.js): assembled view with explode slider for native designs, flat sheet view for all.
+- **3D preview** (three.js): assembled view with explode slider for native designs, flat sheet view for all,
+  and stereo (cross-eyed or parallel, with a depth slider) as in Boxsmith.
 
 ## Develop
 
