@@ -7,6 +7,15 @@
 <meta name="description" content="Parametric laser-cut designs: pick from the library, make it bespoke, export LightBurn-ready SVG, DXF and LBRN2.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="application-name" content="Lasersmith">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Lasersmith">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f4efe6">
 <style>
 :root{--bg:#f4efe6;--panel:#fffaf2;--panel2:#f1e9dc;--line:#dccfba;--ink:#2a241c;--mute:#776c5c;--wood:#b9873f;--woodInk:#fff8ec;--accent:#d8452b;--ok:#2f7d48;--warn:#a86a00;--err:#c0392b;--field:#fff;--view:radial-gradient(120% 90% at 50% 30%,#fffaf1 0%,#e9dfcf 75%);--r:14px;color-scheme:light}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171915;--panel:#20231e;--panel2:#272b25;--line:#363b33;--ink:#efe6d6;--mute:#a49c8c;--wood:#e2c08d;--woodInk:#2a1d0f;--accent:#ff5a3c;--ok:#57c26b;--warn:#e7b04a;--err:#ff6b5b;--field:#11130f;--view:radial-gradient(120% 90% at 50% 30%,#2b3027 0%,#171915 70%);color-scheme:dark}}
@@ -287,5 +296,6 @@ footer a{color:inherit}
 <!--GENWORKER-->
 <!--BOXESZIP-->
 <script>/*APP*/</script>
+<script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }</script>
 </body>
 </html>

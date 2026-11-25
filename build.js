@@ -77,6 +77,13 @@ export async function build() {
   fs.writeFileSync(path.join(DIST, 'index.html'), site);
   fs.writeFileSync(path.join(DIST, 'boxespy.zip'), zip);
   fs.writeFileSync(path.join(DIST, 'artifact.html'), artifact);
+  // PWA: copy the manifest, service worker and icons into dist/ (see src/pwa/).
+  // dist/ is rebuilt on every deploy, so these files must be copied by the
+  // build rather than committed to dist/ directly.
+  const pwa = path.join(ROOT, 'src', 'pwa');
+  fs.copyFileSync(path.join(pwa, 'manifest.webmanifest'), path.join(DIST, 'manifest.webmanifest'));
+  fs.copyFileSync(path.join(pwa, 'sw.js'), path.join(DIST, 'sw.js'));
+  fs.cpSync(path.join(pwa, 'icons'), path.join(DIST, 'icons'), { recursive: true });
   const kb = n => (n / 1024).toFixed(0) + ' KB';
   console.log(`built dist/index.html ${kb(site.length)}, dist/boxespy.zip ${kb(zip.length)}, dist/artifact.html ${kb(artifact.length)}`);
 }
