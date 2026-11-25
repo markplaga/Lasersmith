@@ -3,10 +3,12 @@
    installed. Supabase, Pyodide and other cross-origin requests are never
    intercepted, so accounts and the boxes.py designs keep working.
    Bump VERSION whenever you change app files so installed copies refresh. */
-const VERSION='lasersmith-v1';
+const VERSION='lasersmith-v2';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest',
-  'icons/icon.svg'
+  'icons/icon.svg',
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png',
+  'icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', e => {
