@@ -565,5 +565,53 @@ if (account) {
   });
 }
 
+// PWA-UPDATE-SYSTEM v2 bridge: the update script lives in src/index.html
+// (a separate <script> in the built page) and cannot see inside this
+// bundle, so expose only what an update needs. isDirty: the durable
+// design state (entry, parameters, material, machine, units, view,
+// stereo) or the user's own designs differ from what is stored, or a
+// Claude prompt is typed but unsent. isBusy: a save to the account or
+// a Claude generation is still running. flush: write the live state
+// and designs to localStorage now (the same writes save() and
+// saveMine() do) and report the unsent Claude draft, if any, so the
+// update script can stash it and restore it after the reload.
+// Transient UI state (search text, sheet tab, explode slider) is not
+// counted as dirty: losing it on reload costs nothing.
+const DURABLE_KEYS = ['entry', 'params', 'material', 'machine', 'units', 'view', 'stereo', 'stereoDeg'];
+function lsDraft() {
+  const el = document.getElementById('cpAsk');
+  return el && el.value.trim() ? el.value : '';
+}
+window.__lasersmithUpdate = {
+  isDirty() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(STORE) || 'null');
+      if (stored) {
+        for (const k of DURABLE_KEYS) {
+          if (JSON.stringify(S[k]) !== JSON.stringify(stored[k])) return true;
+        }
+      }
+      if (JSON.stringify(loadMine()) !== JSON.stringify(mine)) return true;
+    } catch (e) { return true; }
+    return lsDraft() !== '';
+  },
+  isBusy() {
+    // A cloud Save / Save-a-copy button is disabled while its save
+    // runs (see src/ui/account.js); the Claude Stop button is shown
+    // only while a generation runs (see src/ui/claudepanel.js).
+    const cloud = document.querySelector('#cloudTools [data-ct="save"]:disabled, #cloudTools [data-ct="fork"]:disabled');
+    const stop = document.getElementById('cpStop');
+    return !!cloud || (!!stop && !stop.hidden);
+  },
+  flush() {
+    const draft = lsDraft();
+    try {
+      save();
+      if (!saveMine(mine)) return { ok: false, draft };
+      return { ok: true, draft };
+    } catch (e) { return { ok: false, draft }; }
+  },
+};
+
 // test hook
 window.__lasersmith = { get store() { return store; }, get design() { return design; }, get issues() { return issues; }, get nested() { return nested; }, get mine() { return mine; }, sandbox, select, state: S };
