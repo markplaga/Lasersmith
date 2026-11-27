@@ -83,6 +83,9 @@ export async function build() {
   const pwa = path.join(ROOT, 'src', 'pwa');
   fs.copyFileSync(path.join(pwa, 'manifest.webmanifest'), path.join(DIST, 'manifest.webmanifest'));
   fs.copyFileSync(path.join(pwa, 'sw.js'), path.join(DIST, 'sw.js'));
+  // PWA-UPDATE-SYSTEM v2: version.json is copied like the worker so the
+  // deployed release identity always matches the built page and worker.
+  fs.copyFileSync(path.join(pwa, 'version.json'), path.join(DIST, 'version.json'));
   fs.cpSync(path.join(pwa, 'icons'), path.join(DIST, 'icons'), { recursive: true });
   const kb = n => (n / 1024).toFixed(0) + ' KB';
   console.log(`built dist/index.html ${kb(site.length)}, dist/boxespy.zip ${kb(zip.length)}, dist/artifact.html ${kb(artifact.length)}`);
